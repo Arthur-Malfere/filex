@@ -30,6 +30,9 @@ UIState* ui_init(int width, int height, const char* title) {
     state->file_scroll_offset = 0;
     state->initialized = false;
     state->show_hidden = false;
+    state->menu_active = false;
+    state->menu_x = 0;
+    state->menu_y = 0;
     state->create_active = false;
     state->create_confirmed = false;
     state->create_type = CREATE_NONE;
@@ -246,6 +249,14 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
         state->show_hidden = !state->show_hidden;
     }
     
+    // Détection du clic droit pour menu contextuel
+    if (!state->create_active && IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
+        state->menu_active = true;
+        Vector2 mouse_pos = GetMousePosition();
+        state->menu_x = (int)mouse_pos.x;
+        state->menu_y = (int)mouse_pos.y;
+    }
+    
     // Gestion du scroll avec la molette
     float wheel = GetMouseWheelMove();
     if (wheel != 0) {
@@ -279,36 +290,6 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     }
     DrawRectangleRec(back_button, back_color);
     DrawText("< Retour", PADDING + 5, 12, 16, DARKGRAY);
-
-    // Boutons de création
-    Rectangle new_dir_btn = {(float)(PADDING + 95), 8, 110, 24};
-    Rectangle new_file_btn = {(float)(PADDING + 210), 8, 110, 24};
-    Color btn_color_dir = LIGHTGRAY;
-    Color btn_color_file = LIGHTGRAY;
-    if (CheckCollisionPointRec(GetMousePosition(), new_dir_btn)) {
-        btn_color_dir = GRAY;
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-            state->create_active = true;
-            state->create_confirmed = false;
-            state->create_type = CREATE_DIRECTORY;
-            state->create_name[0] = '\0';
-            state->search_active = false; // désactiver la recherche
-        }
-    }
-    if (CheckCollisionPointRec(GetMousePosition(), new_file_btn)) {
-        btn_color_file = GRAY;
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-            state->create_active = true;
-            state->create_confirmed = false;
-            state->create_type = CREATE_FILE;
-            state->create_name[0] = '\0';
-            state->search_active = false; // désactiver la recherche
-        }
-    }
-    DrawRectangleRec(new_dir_btn, btn_color_dir);
-    DrawText("+ Dossier", (int)new_dir_btn.x + 8, (int)new_dir_btn.y + 6, 14, DARKGRAY);
-    DrawRectangleRec(new_file_btn, btn_color_file);
-    DrawText("+ Fichier", (int)new_file_btn.x + 8, (int)new_file_btn.y + 6, 14, DARKGRAY);
     
     // Chemin actuel
     DrawRectangle(0, 40, state->window_width, 35, LIGHTGRAY);
@@ -396,24 +377,143 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     }
     
     // Détection du clic sur la barre de recherche
-    if (!state->create_active && CheckCollisionPointRec(GetMousePosition(), search_box) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+    if (!state->create_active && !state->menu_active && CheckCollisionPointRec(GetMousePosition(), search_box) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         state->search_active = true;
+        state->menu_active = false;
     }
 
-    // Champ de saisie pour création
-    int create_y = search_y + search_height + 10;
+    // Menu contextuel
+    if (state->menu_active) {
+        int menu_item_height = 30;
+        Rectangle menu_bg = {(float)state->menu_x, (float)state->menu_y, 180, (float)(menu_item_height * 2)};
+        DrawRectangleRec(menu_bg, WHITE);
+        DrawRectangleLinesEx(menu_bg, 2, DARKGRAY);
+        
+        // Item 1: Nouveau dossier
+        Rectangle item1 = {(float)state->menu_x, (float)state->menu_y, 180, (float)menu_item_height};
+        Color item1_color = BLANK;
+        if (CheckCollisionPointRec(GetMousePosition(), item1)) {
+            item1_color = Fade(SKYBLUE, 0.3f);
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                state->menu_active = false;
+                state->create_active = true;
+                state->create_confirmed = false;
+                state->create_type = CREATE_DIRECTORY;
+                state->create_name[0] = '\0';
+                state->search_active = false;
+            }
+        }
+        DrawRectangleRec(item1, item1_color);
+        DrawText("Nouveau dossier", (int)state->menu_x + 10, (int)state->menu_y + 7, 14, BLACK);
+        
+        // Item 2: Nouveau fichier
+        Rectangle item2 = {(float)state->menu_x, (float)(state->menu_y + menu_item_height), 180, (float)menu_item_height};
+        Color item2_color = BLANK;
+        if (CheckCollisionPointRec(GetMousePosition(), item2)) {
+            item2_color = Fade(SKYBLUE, 0.3f);
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                state->menu_active = false;
+                state->create_active = true;
+                state->create_confirmed = false;
+                state->create_type = CREATE_FILE;
+                state->create_name[0] = '\0';
+                state->search_active = false;
+            }
+        }
+        DrawRectangleRec(item2, item2_color);
+        DrawText("Nouveau fichier", (int)state->menu_x + 10, (int)(state->menu_y + menu_item_height + 7), 14, BLACK);
+        
+        // Close menu on escape or click outside
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            state->menu_active = false;
+        }
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            Rectangle menu_rect = {(float)state->menu_x, (float)state->menu_y, 180, (float)(menu_item_height * 2)};
+            if (!CheckCollisionPointRec(GetMousePosition(), menu_rect)) {
+                state->menu_active = false;
+            }
+        }
+    }
+    
+    // Champ de saisie pour création (modal)
     if (state->create_active) {
-        Rectangle create_box = {PADDING, (float)create_y, (float)state->window_width - 2 * PADDING, 30};
-        DrawRectangleRec(create_box, WHITE);
-        DrawRectangleLinesEx(create_box, 2, SKYBLUE);
-        const char* placeholder = (state->create_type == CREATE_DIRECTORY) ? "Nom du dossier... (ENTER pour valider)" : "Nom du fichier... (ENTER pour valider)";
+        // Semi-transparent overlay
+        DrawRectangle(0, 0, state->window_width, state->window_height, Fade(BLACK, 0.3f));
+        
+        // Modal box
+        int modal_width = 400;
+        int modal_height = 140;
+        int modal_x = (state->window_width - modal_width) / 2;
+        int modal_y = (state->window_height - modal_height) / 2;
+        
+        DrawRectangle(modal_x, modal_y, modal_width, modal_height, WHITE);
+        Rectangle modal_rect = {(float)modal_x, (float)modal_y, (float)modal_width, (float)modal_height};
+        DrawRectangleLinesEx(modal_rect, 3, SKYBLUE);
+        
+        // Title
+        const char* title = (state->create_type == CREATE_DIRECTORY) ? "Créer un dossier" : "Créer un fichier";
+        int title_width = MeasureText(title, 18);
+        DrawText(title, modal_x + (modal_width - title_width) / 2, modal_y + 15, 18, DARKGRAY);
+        
+        // Input field
+        int input_y = modal_y + 50;
+        Rectangle input_box = {(float)(modal_x + 15), (float)input_y, (float)(modal_width - 30), 35};
+        DrawRectangleRec(input_box, Fade(WHITE, 0.9f));
+        DrawRectangleLinesEx(input_box, 2, SKYBLUE);
+        
+        const char* placeholder = (state->create_type == CREATE_DIRECTORY) ? "Nom du dossier..." : "Nom du fichier...";
         const char* text = (state->create_name[0] != '\0') ? state->create_name : placeholder;
-        Color color = (state->create_name[0] != '\0') ? BLACK : GRAY;
-        DrawText(text, PADDING + 10, create_y + 7, 16, color);
-        // Curseur clignotant
+        Color text_color = (state->create_name[0] != '\0') ? BLACK : GRAY;
+        DrawText(text, (int)input_box.x + 10, (int)input_box.y + 9, 16, text_color);
+        
+        // Blinking cursor
         if (state->create_name[0] != '\0' && ((int)(GetTime() * 2) % 2 == 0)) {
             int tw = MeasureText(state->create_name, 16);
-            DrawText("|", PADDING + 10 + tw, create_y + 7, 16, BLACK);
+            DrawText("|", (int)input_box.x + 10 + tw, (int)input_box.y + 9, 16, BLACK);
+        }
+        
+        // Buttons
+        int btn_width = 80;
+        int btn_y = modal_y + 100;
+        int btn_spacing = 20;
+        int total_width = btn_width * 2 + btn_spacing;
+        int start_x = modal_x + (modal_width - total_width) / 2;
+        
+        // OK button
+        Rectangle ok_btn = {(float)start_x, (float)btn_y, (float)btn_width, 25};
+        Color ok_color = Fade(SKYBLUE, 0.8f);
+        if (CheckCollisionPointRec(GetMousePosition(), ok_btn)) {
+            ok_color = SKYBLUE;
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                if (state->create_name[0] != '\0') {
+                    state->create_confirmed = true;
+                }
+            }
+        }
+        DrawRectangleRec(ok_btn, ok_color);
+        DrawText("OK", (int)ok_btn.x + 30, (int)ok_btn.y + 5, 14, WHITE);
+        
+        // Cancel button
+        Rectangle cancel_btn = {(float)(start_x + btn_width + btn_spacing), (float)btn_y, (float)btn_width, 25};
+        Color cancel_color = Fade(LIGHTGRAY, 0.8f);
+        if (CheckCollisionPointRec(GetMousePosition(), cancel_btn)) {
+            cancel_color = GRAY;
+            if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                state->create_active = false;
+                state->create_confirmed = false;
+                state->create_type = CREATE_NONE;
+                state->create_name[0] = '\0';
+            }
+        }
+        DrawRectangleRec(cancel_btn, cancel_color);
+        DrawText("Cancel", (int)cancel_btn.x + 18, (int)cancel_btn.y + 5, 14, DARKGRAY);
+        
+        // Handle ESC to close modal
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            state->create_active = false;
+            state->create_confirmed = false;
+            state->create_type = CREATE_NONE;
+            state->create_name[0] = '\0';
         }
     }
     

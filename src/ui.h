@@ -29,6 +29,10 @@ typedef struct {
     long file_size;            // Taille du fichier sélectionné
     int file_scroll_offset;    // Offset de scroll pour le contenu du fichier
     bool show_hidden;          // Afficher fichiers/dossiers cachés
+    // Menu contextuel
+    bool menu_active;
+    int menu_x;
+    int menu_y;
     // Création de fichier/dossier
     bool create_active;
     bool create_confirmed;
