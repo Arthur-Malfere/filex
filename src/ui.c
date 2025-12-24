@@ -155,12 +155,29 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             
             DrawRectangleRec(item_rect, bg_color);
             
-            // Icône
-            const char* icon = entry->type == FILE_TYPE_DIRECTORY ? "📁" : "📄";
-            DrawText(icon, x, y + 3, FONT_SIZE, get_file_color(entry->type));
+            // Icône dessinée
+            if (entry->type == FILE_TYPE_DIRECTORY) {
+                // Dossier : rectangle avec onglet
+                DrawRectangle(x + 2, y + 8, 18, 14, BLUE);
+                DrawRectangle(x + 2, y + 5, 8, 3, BLUE);
+            } else {
+                // Fichier : rectangle avec coin plié
+                DrawRectangle(x + 3, y + 5, 14, 17, LIGHTGRAY);
+                DrawRectangle(x + 3, y + 5, 14, 1, DARKGRAY);
+                DrawRectangle(x + 3, y + 5, 1, 17, DARKGRAY);
+                DrawRectangle(x + 17, y + 5, 1, 17, DARKGRAY);
+                DrawRectangle(x + 3, y + 22, 15, 1, DARKGRAY);
+                // Coin plié
+                DrawTriangle(
+                    (Vector2){x + 17, y + 5},
+                    (Vector2){x + 12, y + 5},
+                    (Vector2){x + 17, y + 10},
+                    GRAY
+                );
+            }
             
             // Nom
-            DrawText(entry->name, x + 35, y + 3, FONT_SIZE - 2, BLACK);
+            DrawText(entry->name, x + 28, y + 3, FONT_SIZE - 2, BLACK);
             
             // Taille (seulement pour les fichiers)
             if (entry->type == FILE_TYPE_FILE) {
