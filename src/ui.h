@@ -13,6 +13,8 @@ typedef struct {
     bool initialized;
     char* clicked_path;  // Chemin cliqué pour navigation
     bool go_back;        // Demande de retour au dossier parent
+    char search_text[256]; // Texte de recherche
+    bool search_active;    // Si la barre de recherche est active
 } UIState;
 
 // Initialise l'interface utilisateur

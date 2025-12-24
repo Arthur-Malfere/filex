@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define FONT_SIZE 20
 #define LINE_HEIGHT 25
@@ -18,6 +19,8 @@ UIState* ui_init(int width, int height, const char* title) {
     state->selected_index = -1;
     state->clicked_path = NULL;
     state->go_back = false;
+    state->search_text[0] = '\0';
+    state->search_active = false;
     state->initialized = false;
     
     InitWindow(width, height, title);
@@ -55,6 +58,26 @@ static Color get_file_color(FileType type) {
     return type == FILE_TYPE_DIRECTORY ? BLUE : DARKGRAY;
 }
 
+static bool matches_search(const char* filename, const char* search) {
+    if (search[0] == '\0') return true;
+    
+    // Recherche insensible à la casse
+    char lower_filename[256];
+    char lower_search[256];
+    
+    for (int i = 0; filename[i] && i < 255; i++) {
+        lower_filename[i] = tolower(filename[i]);
+        lower_filename[i + 1] = '\0';
+    }
+    
+    for (int i = 0; search[i] && i < 255; i++) {
+        lower_search[i] = tolower(search[i]);
+        lower_search[i + 1] = '\0';
+    }
+    
+    return strstr(lower_filename, lower_search) != NULL;
+}
+
 void ui_render(UIState* state, FileList* files, const char* current_path) {
     if (!state || !files) return;
     
@@ -64,6 +87,38 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
         state->clicked_path = NULL;
     }
     state->go_back = false;
+    
+    // Gestion de l'input clavier pour la recherche
+    if (state->search_active) {
+        int key = GetCharPressed();
+        while (key > 0) {
+            if (key >= 32 && key <= 125) {
+                int len = strlen(state->search_text);
+                if (len < 254) {
+                    state->search_text[len] = (char)key;
+                    state->search_text[len + 1] = '\0';
+                }
+            }
+            key = GetCharPressed();
+        }
+        
+        if (IsKeyPressed(KEY_BACKSPACE)) {
+            int len = strlen(state->search_text);
+            if (len > 0) {
+                state->search_text[len - 1] = '\0';
+            }
+        }
+        
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            state->search_active = false;
+            state->search_text[0] = '\0';
+        }
+    } else {
+        // Activer la recherche avec Ctrl+F ou Cmd+F
+        if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_LEFT_SUPER)) && IsKeyPressed(KEY_F)) {
+            state->search_active = true;
+        }
+    }
     
     // Gestion du scroll avec la molette
     float wheel = GetMouseWheelMove();
@@ -119,13 +174,68 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     snprintf(stats, sizeof(stats), "%d dossiers, %d fichiers", dir_count, file_count);
     DrawText(stats, PADDING, 80, 16, WHITE);
     
+    // Barre de recherche
+    int search_y = 100;
+    int search_height = 35;
+    Rectangle search_box = {PADDING, (float)search_y + 5, (float)state->window_width - 2 * PADDING, (float)search_height - 10};
+    
+    Color search_bg = state->search_active ? WHITE : Fade(WHITE, 0.7f);
+    DrawRectangleRec(search_box, search_bg);
+    DrawRectangleLinesEx(search_box, 2, state->search_active ? SKYBLUE : GRAY);
+    
+    // Icône de recherche
+    DrawText("🔍", PADDING + 8, search_y + 8, 16, DARKGRAY);
+    
+    // Texte de recherche
+    if (state->search_text[0] != '\0') {
+        DrawText(state->search_text, PADDING + 35, search_y + 10, 16, BLACK);
+        
+        // Curseur clignotant
+        if (state->search_active && ((int)(GetTime() * 2) % 2 == 0)) {
+            int text_width = MeasureText(state->search_text, 16);
+            DrawText("|", PADDING + 35 + text_width, search_y + 10, 16, BLACK);
+        }
+    } else if (state->search_active) {
+        // Curseur seul
+        if ((int)(GetTime() * 2) % 2 == 0) {
+            DrawText("|", PADDING + 35, search_y + 10, 16, BLACK);
+        }
+    } else {
+        // Placeholder
+        DrawText("Rechercher... (Ctrl+F)", PADDING + 35, search_y + 10, 16, GRAY);
+    }
+    
+    // Compteur de résultats
+    if (state->search_text[0] != '\0') {
+        int match_count = 0;
+        for (int i = 0; i < files->count; i++) {
+            if (matches_search(files->entries[i].name, state->search_text)) {
+                match_count++;
+            }
+        }
+        char count_text[64];
+        snprintf(count_text, sizeof(count_text), "%d résultat%s", match_count, match_count > 1 ? "s" : "");
+        int count_width = MeasureText(count_text, 14);
+        DrawText(count_text, state->window_width - count_width - PADDING - 10, search_y + 12, 14, DARKGRAY);
+    }
+    
+    // Détection du clic sur la barre de recherche
+    if (CheckCollisionPointRec(GetMousePosition(), search_box) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        state->search_active = true;
+    }
+    
     // Zone de défilement
-    int content_y = 100;
+    int content_y = 140;
     int y = content_y - state->scroll_offset;
     
     // Dessiner les fichiers
     for (int i = 0; i < files->count; i++) {
         FileEntry* entry = &files->entries[i];
+        
+        // Filtrer selon la recherche
+        if (!matches_search(entry->name, state->search_text)) {
+            continue;
+        }
         
         // Ne dessiner que les éléments visibles
         if (y >= content_y - LINE_HEIGHT && y < state->window_height) {
@@ -195,9 +305,11 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     }
     
     // Instructions
-    const char* instructions = "Cliquez sur un dossier pour y entrer | Molette pour defiler | ESC pour quitter";
-    int text_width = MeasureText(instructions, 14);
-    DrawText(instructions, state->window_width - text_width - PADDING, state->window_height - 25, 14, DARKGRAY);
+    const char* instructions = state->search_active ? 
+        "Tapez pour chercher | BACKSPACE pour effacer | ESC pour annuler" :
+        "Ctrl+F: Rechercher | Cliquez sur un dossier pour y entrer | Molette pour defiler | ESC pour quitter";
+    int text_width = MeasureText(instructions, 12);
+    DrawText(instructions, state->window_width - text_width - PADDING, state->window_height - 25, 12, DARKGRAY);
     
     EndDrawing();
 }
