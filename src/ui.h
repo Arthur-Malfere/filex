@@ -17,6 +17,11 @@ typedef struct {
     bool search_active;    // Si la barre de recherche est active
     bool is_searching;     // Si on affiche des résultats de recherche récursive
     bool search_limit_reached; // Si la limite de résultats a été atteinte
+    char* selected_file_path;  // Chemin du fichier sélectionné pour visualisation
+    char* file_content;        // Contenu du fichier sélectionné
+    bool is_binary_file;       // Si le fichier sélectionné est binaire
+    long file_size;            // Taille du fichier sélectionné
+    int file_scroll_offset;    // Offset de scroll pour le contenu du fichier
 } UIState;
 
 // Initialise l'interface utilisateur
