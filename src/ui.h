@@ -11,6 +11,8 @@ typedef struct {
     int window_height;
     Font font;
     bool initialized;
+    char* clicked_path;  // Chemin cliqué pour navigation
+    bool go_back;        // Demande de retour au dossier parent
 } UIState;
 
 // Initialise l'interface utilisateur
@@ -19,8 +21,14 @@ UIState* ui_init(int width, int height, const char* title);
 // Libère les ressources de l'UI
 void ui_destroy(UIState* state);
 
-// Affiche la liste des fichiers
+// Affiche la liste des fichiers et retourne le chemin cliqué ou NULL
 void ui_render(UIState* state, FileList* files, const char* current_path);
+
+// Récupère et réinitialise le chemin cliqué
+char* ui_get_clicked_path(UIState* state);
+
+// Vérifie si le bouton retour a été cliqué
+bool ui_should_go_back(UIState* state);
 
 // Gère les événements de la fenêtre
 bool ui_should_close(void);

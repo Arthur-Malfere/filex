@@ -34,6 +34,12 @@ void file_list_destroy(FileList* list);
 // Explore un répertoire de manière récursive
 bool explore_directory(const char* path, FileList* list, int depth);
 
+// Explore seulement le contenu direct d'un répertoire (non-récursif)
+bool explore_directory_shallow(const char* path, FileList* list);
+
+// Efface le contenu de la liste
+void file_list_clear(FileList* list);
+
 // Trie la liste par nom
 void file_list_sort(FileList* list);
 

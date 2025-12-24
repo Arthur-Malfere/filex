@@ -108,6 +108,62 @@ bool explore_directory(const char* path, FileList* list, int depth) {
     return true;
 }
 
+bool explore_directory_shallow(const char* path, FileList* list) {
+    DIR* dir = opendir(path);
+    if (!dir) {
+        fprintf(stderr, "Impossible d'ouvrir le répertoire: %s\n", path);
+        return false;
+    }
+    
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL) {
+        // Ignorer . et ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        
+        // Ignorer les fichiers cachés
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+        
+        char full_path[MAX_PATH_LENGTH];
+        snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+        
+        struct stat st;
+        if (stat(full_path, &st) == -1) {
+            continue;
+        }
+        
+        FileEntry file_entry;
+        strncpy(file_entry.path, full_path, sizeof(file_entry.path) - 1);
+        file_entry.path[sizeof(file_entry.path) - 1] = '\0';
+        
+        strncpy(file_entry.name, entry->d_name, sizeof(file_entry.name) - 1);
+        file_entry.name[sizeof(file_entry.name) - 1] = '\0';
+        
+        file_entry.size = st.st_size;
+        file_entry.depth = 0;
+        
+        if (S_ISDIR(st.st_mode)) {
+            file_entry.type = FILE_TYPE_DIRECTORY;
+        } else {
+            file_entry.type = FILE_TYPE_FILE;
+        }
+        
+        file_list_add(list, &file_entry);
+    }
+    
+    closedir(dir);
+    return true;
+}
+
+void file_list_clear(FileList* list) {
+    if (list) {
+        list->count = 0;
+    }
+}
+
 static int compare_entries(const void* a, const void* b) {
     const FileEntry* entry_a = (const FileEntry*)a;
     const FileEntry* entry_b = (const FileEntry*)b;

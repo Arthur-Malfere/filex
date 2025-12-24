@@ -16,6 +16,8 @@ UIState* ui_init(int width, int height, const char* title) {
     state->window_height = height;
     state->scroll_offset = 0;
     state->selected_index = -1;
+    state->clicked_path = NULL;
+    state->go_back = false;
     state->initialized = false;
     
     InitWindow(width, height, title);
@@ -29,6 +31,9 @@ UIState* ui_init(int width, int height, const char* title) {
 
 void ui_destroy(UIState* state) {
     if (state && state->initialized) {
+        if (state->clicked_path) {
+            free(state->clicked_path);
+        }
         CloseWindow();
         free(state);
     }
@@ -53,6 +58,13 @@ static Color get_file_color(FileType type) {
 void ui_render(UIState* state, FileList* files, const char* current_path) {
     if (!state || !files) return;
     
+    // Réinitialiser le chemin cliqué et go_back
+    if (state->clicked_path) {
+        free(state->clicked_path);
+        state->clicked_path = NULL;
+    }
+    state->go_back = false;
+    
     // Gestion du scroll avec la molette
     float wheel = GetMouseWheelMove();
     if (wheel != 0) {
@@ -61,7 +73,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             state->scroll_offset = 0;
         }
         
-        int max_scroll = (files->count * LINE_HEIGHT) - state->window_height + 100;
+        int max_scroll = (files->count * LINE_HEIGHT) - state->window_height + 150;
         if (max_scroll < 0) max_scroll = 0;
         if (state->scroll_offset > max_scroll) {
             state->scroll_offset = max_scroll;
@@ -71,9 +83,21 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     BeginDrawing();
     ClearBackground(RAYWHITE);
     
-    // En-tête
+    // En-tête avec bouton retour
     DrawRectangle(0, 0, state->window_width, 40, DARKGRAY);
-    DrawText("Explorateur de Fichiers", PADDING, 10, FONT_SIZE, WHITE);
+    DrawText("Explorateur de Fichiers", PADDING + 100, 10, FONT_SIZE, WHITE);
+    
+    // Bouton retour
+    Rectangle back_button = {PADDING, 8, 80, 24};
+    Color back_color = LIGHTGRAY;
+    if (CheckCollisionPointRec(GetMousePosition(), back_button)) {
+        back_color = GRAY;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            state->go_back = true;
+        }
+    }
+    DrawRectangleRec(back_button, back_color);
+    DrawText("< Retour", PADDING + 5, 12, 16, DARKGRAY);
     
     // Chemin actuel
     DrawRectangle(0, 40, state->window_width, 35, LIGHTGRAY);
@@ -108,16 +132,35 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             int x = PADDING + (entry->depth * INDENT_SIZE);
             
             // Fond de sélection
-            if (i == state->selected_index) {
-                DrawRectangle(0, y, state->window_width, LINE_HEIGHT, Fade(SKYBLUE, 0.3f));
+            Color bg_color = BLANK;
+            Rectangle item_rect = { 0, (float)y, (float)state->window_width, LINE_HEIGHT };
+            
+            if (CheckCollisionPointRec(GetMousePosition(), item_rect)) {
+                bg_color = Fade(SKYBLUE, 0.2f);
+                if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                    state->selected_index = i;
+                    // Si c'est un dossier, on navigue dedans
+                    if (entry->type == FILE_TYPE_DIRECTORY) {
+                        state->clicked_path = (char*)malloc(strlen(entry->path) + 1);
+                        if (state->clicked_path) {
+                            strcpy(state->clicked_path, entry->path);
+                        }
+                    }
+                }
             }
             
+            if (i == state->selected_index) {
+                bg_color = Fade(SKYBLUE, 0.4f);
+            }
+            
+            DrawRectangleRec(item_rect, bg_color);
+            
             // Icône
-            const char* icon = entry->type == FILE_TYPE_DIRECTORY ? "[DIR]" : "[FILE]";
-            DrawText(icon, x, y + 3, FONT_SIZE - 2, get_file_color(entry->type));
+            const char* icon = entry->type == FILE_TYPE_DIRECTORY ? "📁" : "📄";
+            DrawText(icon, x, y + 3, FONT_SIZE, get_file_color(entry->type));
             
             // Nom
-            DrawText(entry->name, x + 60, y + 3, FONT_SIZE - 2, BLACK);
+            DrawText(entry->name, x + 35, y + 3, FONT_SIZE - 2, BLACK);
             
             // Taille (seulement pour les fichiers)
             if (entry->type == FILE_TYPE_FILE) {
@@ -125,12 +168,9 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
                 format_size(entry->size, size_str, sizeof(size_str));
                 int size_width = MeasureText(size_str, FONT_SIZE - 4);
                 DrawText(size_str, state->window_width - size_width - PADDING, y + 5, FONT_SIZE - 4, DARKGRAY);
-            }
-            
-            // Détection du clic
-            Rectangle bounds = { 0, (float)y, (float)state->window_width, LINE_HEIGHT };
-            if (CheckCollisionPointRec(GetMousePosition(), bounds) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                state->selected_index = i;
+            } else {
+                // Flèche pour les dossiers
+                DrawText(">", state->window_width - 30, y + 3, FONT_SIZE, DARKGRAY);
             }
         }
         
@@ -138,11 +178,23 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     }
     
     // Instructions
-    const char* instructions = "Utilisez la molette pour defiler | ESC pour quitter";
+    const char* instructions = "Cliquez sur un dossier pour y entrer | Molette pour defiler | ESC pour quitter";
     int text_width = MeasureText(instructions, 14);
     DrawText(instructions, state->window_width - text_width - PADDING, state->window_height - 25, 14, DARKGRAY);
     
     EndDrawing();
+}
+
+char* ui_get_clicked_path(UIState* state) {
+    if (!state) return NULL;
+    
+    char* path = state->clicked_path;
+    state->clicked_path = NULL;
+    return path;
+}
+
+bool ui_should_go_back(UIState* state) {
+    return state ? state->go_back : false;
 }
 
 bool ui_should_close(void) {
