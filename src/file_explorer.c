@@ -310,3 +310,46 @@ void file_list_sort(FileList* list) {
         qsort(list->entries, list->count, sizeof(FileEntry), compare_entries);
     }
 }
+
+static bool is_valid_name(const char* name) {
+    if (!name || name[0] == '\0') return false;
+    // Empêcher les séparateurs pour éviter chemins relatifs dangereux
+    if (strchr(name, '/') || strchr(name, '\\')) return false;
+    // Empêcher les noms réservés
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) return false;
+    return true;
+}
+
+bool create_directory(const char* parent_path, const char* name) {
+    if (!parent_path || !is_valid_name(name)) return false;
+    char full_path[MAX_PATH_LENGTH];
+    snprintf(full_path, sizeof(full_path), "%s/%s", parent_path, name);
+
+    struct stat st;
+    if (stat(full_path, &st) == 0) {
+        // Existe déjà
+        return false;
+    }
+
+    if (mkdir(full_path, 0777) == 0) {
+        return true;
+    }
+    return false;
+}
+
+bool create_file(const char* parent_path, const char* name) {
+    if (!parent_path || !is_valid_name(name)) return false;
+    char full_path[MAX_PATH_LENGTH];
+    snprintf(full_path, sizeof(full_path), "%s/%s", parent_path, name);
+
+    struct stat st;
+    if (stat(full_path, &st) == 0) {
+        // Existe déjà
+        return false;
+    }
+
+    FILE* f = fopen(full_path, "w");
+    if (!f) return false;
+    fclose(f);
+    return true;
+}

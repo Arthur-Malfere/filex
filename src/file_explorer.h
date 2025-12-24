@@ -48,4 +48,10 @@ void file_list_clear(FileList* list);
 // Trie la liste par nom
 void file_list_sort(FileList* list);
 
+// Crée un nouveau dossier dans le chemin parent
+bool create_directory(const char* parent_path, const char* name);
+
+// Crée un nouveau fichier dans le chemin parent
+bool create_file(const char* parent_path, const char* name);
+
 #endif // FILE_EXPLORER_H

@@ -73,12 +73,40 @@ int main(int argc, char** argv) {
     
     char previous_search[256] = "";
     bool prev_show_hidden = false;
+    char last_message[256] = "";
     
     // Boucle principale
     while (!ui_should_close()) {
         ui_render(ui, files, current_path);
 
         bool current_show_hidden = ui_get_show_hidden(ui);
+
+        // Création de fichiers/dossiers
+        if (ui_creation_confirmed(ui)) {
+            const char* name = ui_get_creation_name(ui);
+            CreateType type = ui_get_creation_type(ui);
+            bool ok = false;
+            if (type == CREATE_DIRECTORY) {
+                ok = create_directory(current_path, name);
+            } else if (type == CREATE_FILE) {
+                ok = create_file(current_path, name);
+            }
+            if (ok) {
+                snprintf(last_message, sizeof(last_message), "Creé: %s", name);
+                // Recharger la vue courante
+                if (ui_is_searching(ui) && ui_get_search_text(ui)[0] != '\0') {
+                    file_list_clear(files);
+                    bool limit_reached = !search_files_recursive(current_path, ui_get_search_text(ui), files, 0, current_show_hidden);
+                    file_list_sort(files);
+                    ui_set_search_limit_reached(ui, limit_reached);
+                } else {
+                    load_directory(current_path, files, current_show_hidden);
+                }
+            } else {
+                snprintf(last_message, sizeof(last_message), "Echec creation: %s", name);
+            }
+            ui_clear_creation_request(ui);
+        }
         
         // Gérer la recherche récursive
         const char* search_text = ui_get_search_text(ui);

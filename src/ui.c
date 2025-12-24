@@ -30,6 +30,10 @@ UIState* ui_init(int width, int height, const char* title) {
     state->file_scroll_offset = 0;
     state->initialized = false;
     state->show_hidden = false;
+    state->create_active = false;
+    state->create_confirmed = false;
+    state->create_type = CREATE_NONE;
+    state->create_name[0] = '\0';
     
     InitWindow(width, height, title);
     SetWindowState(FLAG_WINDOW_RESIZABLE);
@@ -175,8 +179,38 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     }
     state->go_back = false;
     
+    // Gestion de l'input pour la création (prioritaire)
+    if (state->create_active) {
+        int key = GetCharPressed();
+        while (key > 0) {
+            if (key >= 32 && key <= 125) {
+                int len = strlen(state->create_name);
+                if (len < 254) {
+                    state->create_name[len] = (char)key;
+                    state->create_name[len + 1] = '\0';
+                }
+            }
+            key = GetCharPressed();
+        }
+        if (IsKeyPressed(KEY_BACKSPACE)) {
+            int len = strlen(state->create_name);
+            if (len > 0) state->create_name[len - 1] = '\0';
+        }
+        if (IsKeyPressed(KEY_ENTER)) {
+            if (state->create_name[0] != '\0') {
+                state->create_confirmed = true;
+            }
+        }
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            state->create_active = false;
+            state->create_confirmed = false;
+            state->create_type = CREATE_NONE;
+            state->create_name[0] = '\0';
+        }
+    }
+
     // Gestion de l'input clavier pour la recherche
-    if (state->search_active) {
+    if (!state->create_active && state->search_active) {
         int key = GetCharPressed();
         while (key > 0) {
             if (key >= 32 && key <= 125) {
@@ -200,7 +234,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             state->search_active = false;
             state->search_text[0] = '\0';
         }
-    } else {
+    } else if (!state->create_active) {
         // Activer la recherche avec Ctrl+F ou Cmd+F
         if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_LEFT_SUPER)) && IsKeyPressed(KEY_F)) {
             state->search_active = true;
@@ -245,6 +279,36 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     }
     DrawRectangleRec(back_button, back_color);
     DrawText("< Retour", PADDING + 5, 12, 16, DARKGRAY);
+
+    // Boutons de création
+    Rectangle new_dir_btn = {(float)(PADDING + 95), 8, 110, 24};
+    Rectangle new_file_btn = {(float)(PADDING + 210), 8, 110, 24};
+    Color btn_color_dir = LIGHTGRAY;
+    Color btn_color_file = LIGHTGRAY;
+    if (CheckCollisionPointRec(GetMousePosition(), new_dir_btn)) {
+        btn_color_dir = GRAY;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            state->create_active = true;
+            state->create_confirmed = false;
+            state->create_type = CREATE_DIRECTORY;
+            state->create_name[0] = '\0';
+            state->search_active = false; // désactiver la recherche
+        }
+    }
+    if (CheckCollisionPointRec(GetMousePosition(), new_file_btn)) {
+        btn_color_file = GRAY;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            state->create_active = true;
+            state->create_confirmed = false;
+            state->create_type = CREATE_FILE;
+            state->create_name[0] = '\0';
+            state->search_active = false; // désactiver la recherche
+        }
+    }
+    DrawRectangleRec(new_dir_btn, btn_color_dir);
+    DrawText("+ Dossier", (int)new_dir_btn.x + 8, (int)new_dir_btn.y + 6, 14, DARKGRAY);
+    DrawRectangleRec(new_file_btn, btn_color_file);
+    DrawText("+ Fichier", (int)new_file_btn.x + 8, (int)new_file_btn.y + 6, 14, DARKGRAY);
     
     // Chemin actuel
     DrawRectangle(0, 40, state->window_width, 35, LIGHTGRAY);
@@ -332,8 +396,25 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     }
     
     // Détection du clic sur la barre de recherche
-    if (CheckCollisionPointRec(GetMousePosition(), search_box) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+    if (!state->create_active && CheckCollisionPointRec(GetMousePosition(), search_box) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         state->search_active = true;
+    }
+
+    // Champ de saisie pour création
+    int create_y = search_y + search_height + 10;
+    if (state->create_active) {
+        Rectangle create_box = {PADDING, (float)create_y, (float)state->window_width - 2 * PADDING, 30};
+        DrawRectangleRec(create_box, WHITE);
+        DrawRectangleLinesEx(create_box, 2, SKYBLUE);
+        const char* placeholder = (state->create_type == CREATE_DIRECTORY) ? "Nom du dossier... (ENTER pour valider)" : "Nom du fichier... (ENTER pour valider)";
+        const char* text = (state->create_name[0] != '\0') ? state->create_name : placeholder;
+        Color color = (state->create_name[0] != '\0') ? BLACK : GRAY;
+        DrawText(text, PADDING + 10, create_y + 7, 16, color);
+        // Curseur clignotant
+        if (state->create_name[0] != '\0' && ((int)(GetTime() * 2) % 2 == 0)) {
+            int tw = MeasureText(state->create_name, 16);
+            DrawText("|", PADDING + 10 + tw, create_y + 7, 16, BLACK);
+        }
     }
     
     // Zone de défilement
@@ -599,4 +680,24 @@ bool ui_should_close(void) {
 
 bool ui_get_show_hidden(UIState* state) {
     return state ? state->show_hidden : false;
+}
+
+bool ui_creation_confirmed(UIState* state) {
+    return state ? state->create_confirmed : false;
+}
+
+const char* ui_get_creation_name(UIState* state) {
+    return state ? state->create_name : "";
+}
+
+CreateType ui_get_creation_type(UIState* state) {
+    return state ? state->create_type : CREATE_NONE;
+}
+
+void ui_clear_creation_request(UIState* state) {
+    if (!state) return;
+    state->create_active = false;
+    state->create_confirmed = false;
+    state->create_type = CREATE_NONE;
+    state->create_name[0] = '\0';
 }

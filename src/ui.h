@@ -4,6 +4,12 @@
 #include "file_explorer.h"
 #include <raylib.h>
 
+typedef enum {
+    CREATE_NONE = 0,
+    CREATE_FILE = 1,
+    CREATE_DIRECTORY = 2
+} CreateType;
+
 typedef struct {
     int scroll_offset;
     int selected_index;
@@ -23,6 +29,11 @@ typedef struct {
     long file_size;            // Taille du fichier sélectionné
     int file_scroll_offset;    // Offset de scroll pour le contenu du fichier
     bool show_hidden;          // Afficher fichiers/dossiers cachés
+    // Création de fichier/dossier
+    bool create_active;
+    bool create_confirmed;
+    CreateType create_type;
+    char create_name[256];
 } UIState;
 
 // Initialise l'interface utilisateur
@@ -48,6 +59,18 @@ const char* ui_get_search_text(UIState* state);
 
 // Récupère l'état d'affichage des fichiers cachés
 bool ui_get_show_hidden(UIState* state);
+
+// Création: vérifie si une création a été confirmée
+bool ui_creation_confirmed(UIState* state);
+
+// Création: obtient le nom saisi
+const char* ui_get_creation_name(UIState* state);
+
+// Création: obtient le type (fichier ou dossier)
+CreateType ui_get_creation_type(UIState* state);
+
+// Création: réinitialise la demande
+void ui_clear_creation_request(UIState* state);
 
 // Définit l'état de recherche
 void ui_set_searching(UIState* state, bool searching);
