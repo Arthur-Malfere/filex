@@ -16,6 +16,7 @@ typedef struct {
     char search_text[256]; // Texte de recherche
     bool search_active;    // Si la barre de recherche est active
     bool is_searching;     // Si on affiche des résultats de recherche récursive
+    bool search_limit_reached; // Si la limite de résultats a été atteinte
 } UIState;
 
 // Initialise l'interface utilisateur
@@ -41,6 +42,9 @@ const char* ui_get_search_text(UIState* state);
 
 // Définit l'état de recherche
 void ui_set_searching(UIState* state, bool searching);
+
+// Définit si la limite de résultats a été atteinte
+void ui_set_search_limit_reached(UIState* state, bool reached);
 
 // Gère les événements de la fenêtre
 bool ui_should_close(void);

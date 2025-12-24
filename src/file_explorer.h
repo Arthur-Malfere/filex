@@ -5,6 +5,8 @@
 
 #define MAX_PATH_LENGTH 1024
 #define MAX_FILES 10000
+#define MAX_SEARCH_RESULTS 1000
+#define MAX_SEARCH_DEPTH 10
 
 typedef enum {
     FILE_TYPE_FILE,
@@ -37,7 +39,7 @@ bool explore_directory(const char* path, FileList* list, int depth);
 // Explore seulement le contenu direct d'un répertoire (non-récursif)
 bool explore_directory_shallow(const char* path, FileList* list);
 
-// Recherche récursive de fichiers par nom
+// Recherche récursive de fichiers par nom (retourne false si limite atteinte)
 bool search_files_recursive(const char* path, const char* search_term, FileList* list, int depth);
 
 // Efface le contenu de la liste

@@ -83,17 +83,23 @@ int main(int argc, char** argv) {
             // Nouvelle recherche
             printf("Recherche récursive de '%s' dans %s...\n", search_text, current_path);
             file_list_clear(files);
-            search_files_recursive(current_path, search_text, files, 0);
+            bool limit_reached = !search_files_recursive(current_path, search_text, files, 0);
             file_list_sort(files);
             ui_set_searching(ui, true);
+            ui_set_search_limit_reached(ui, limit_reached);
             strncpy(previous_search, search_text, sizeof(previous_search) - 1);
             previous_search[sizeof(previous_search) - 1] = '\0';
-            printf("Résultats: %d\n", files->count);
+            if (limit_reached) {
+                printf("Limite de %d resultats atteinte\n", files->count);
+            } else {
+                printf("Resultats: %d\n", files->count);
+            }
         } else if (search_text[0] == '\0' && previous_search[0] != '\0') {
             // Recherche annulée, recharger le dossier
-            printf("Recherche annulée\n");
+            printf("Recherche annulee\n");
             load_directory(current_path, files);
             ui_set_searching(ui, false);
+            ui_set_search_limit_reached(ui, false);
             previous_search[0] = '\0';
         }
         
@@ -110,6 +116,7 @@ int main(int argc, char** argv) {
                 fprintf(stderr, "Erreur lors du chargement du répertoire\n");
             }
             ui_set_searching(ui, false);
+            ui_set_search_limit_reached(ui, false);
             previous_search[0] = '\0';
         }
         
@@ -129,6 +136,7 @@ int main(int argc, char** argv) {
                     fprintf(stderr, "Erreur lors du chargement du répertoire\n");
                 }
                 ui_set_searching(ui, false);
+                ui_set_search_limit_reached(ui, false);
                 previous_search[0] = '\0';
             }
         }

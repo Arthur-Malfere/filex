@@ -22,6 +22,7 @@ UIState* ui_init(int width, int height, const char* title) {
     state->search_text[0] = '\0';
     state->search_active = false;
     state->is_searching = false;
+    state->search_limit_reached = false;
     state->initialized = false;
     
     InitWindow(width, height, title);
@@ -213,9 +214,14 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     // Compteur de résultats
     if (state->search_text[0] != '\0') {
         char count_text[64];
-        snprintf(count_text, sizeof(count_text), "%d resultat%s", files->count, files->count > 1 ? "s" : "");
+        if (state->search_limit_reached) {
+            snprintf(count_text, sizeof(count_text), "%d+ resultats (limite)", files->count);
+        } else {
+            snprintf(count_text, sizeof(count_text), "%d resultat%s", files->count, files->count > 1 ? "s" : "");
+        }
         int count_width = MeasureText(count_text, 14);
-        DrawText(count_text, state->window_width - count_width - PADDING - 10, search_y + 12, 14, DARKGRAY);
+        DrawText(count_text, state->window_width - count_width - PADDING - 10, search_y + 12, 14, 
+                 state->search_limit_reached ? ORANGE : DARKGRAY);
     }
     
     // Détection du clic sur la barre de recherche
@@ -331,6 +337,12 @@ const char* ui_get_search_text(UIState* state) {
 void ui_set_searching(UIState* state, bool searching) {
     if (state) {
         state->is_searching = searching;
+    }
+}
+
+void ui_set_search_limit_reached(UIState* state, bool reached) {
+    if (state) {
+        state->search_limit_reached = reached;
     }
 }
 

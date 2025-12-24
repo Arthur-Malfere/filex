@@ -7,6 +7,26 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+// Dossiers à exclure de la recherche récursive
+static const char* EXCLUDED_DIRS[] = {
+    "node_modules",
+    ".git",
+    ".svn",
+    ".hg",
+    "__pycache__",
+    ".cache",
+    "build",
+    "dist",
+    "target",
+    ".venv",
+    "venv",
+    "Library",
+    "System",
+    "Applications",
+    "Volumes",
+    NULL
+};
+
 FileList* file_list_create(void) {
     FileList* list = (FileList*)malloc(sizeof(FileList));
     if (!list) return NULL;
@@ -160,9 +180,18 @@ bool explore_directory_shallow(const char* path, FileList* list) {
 }
 
 bool search_files_recursive(const char* path, const char* search_term, FileList* list, int depth) {
+    // Limites de sécurité
+    if (depth > MAX_SEARCH_DEPTH) {
+        return true;  // Continuer mais ne pas descendre plus profond
+    }
+    
+    if (list->count >= MAX_SEARCH_RESULTS) {
+        return false;  // Limite de résultats atteinte
+    }
+    
     DIR* dir = opendir(path);
     if (!dir) {
-        return false;
+        return true;  // Continuer même si on ne peut pas ouvrir ce dossier
     }
     
     // Convertir le terme de recherche en minuscules
@@ -174,6 +203,12 @@ bool search_files_recursive(const char* path, const char* search_term, FileList*
     
     struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
+        // Vérifier la limite de résultats
+        if (list->count >= MAX_SEARCH_RESULTS) {
+            closedir(dir);
+            return false;
+        }
+        
         // Ignorer . et ..
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
             continue;
@@ -181,6 +216,18 @@ bool search_files_recursive(const char* path, const char* search_term, FileList*
         
         // Ignorer les fichiers cachés
         if (entry->d_name[0] == '.') {
+            continue;
+        }
+        
+        // Vérifier si le dossier est dans la liste d'exclusion
+        bool excluded = false;
+        for (int i = 0; EXCLUDED_DIRS[i] != NULL; i++) {
+            if (strcmp(entry->d_name, EXCLUDED_DIRS[i]) == 0) {
+                excluded = true;
+                break;
+            }
+        }
+        if (excluded) {
             continue;
         }
         
@@ -223,7 +270,10 @@ bool search_files_recursive(const char* path, const char* search_term, FileList*
         
         // Continuer la recherche récursive dans les sous-dossiers
         if (S_ISDIR(st.st_mode)) {
-            search_files_recursive(full_path, search_term, list, depth + 1);
+            if (!search_files_recursive(full_path, search_term, list, depth + 1)) {
+                closedir(dir);
+                return false;  // Limite atteinte
+            }
         }
     }
     
