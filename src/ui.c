@@ -29,6 +29,7 @@ UIState* ui_init(int width, int height, const char* title) {
     state->file_size = 0;
     state->file_scroll_offset = 0;
     state->initialized = false;
+    state->show_hidden = false;
     
     InitWindow(width, height, title);
     SetWindowState(FLAG_WINDOW_RESIZABLE);
@@ -205,6 +206,11 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             state->search_active = true;
         }
     }
+
+    // Raccourci clavier pour toggle cachés: Ctrl/Cmd + H
+    if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_LEFT_SUPER)) && IsKeyPressed(KEY_H)) {
+        state->show_hidden = !state->show_hidden;
+    }
     
     // Gestion du scroll avec la molette
     float wheel = GetMouseWheelMove();
@@ -259,6 +265,23 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     }
     snprintf(stats, sizeof(stats), "%d dossiers, %d fichiers", dir_count, file_count);
     DrawText(stats, PADDING, 80, 16, WHITE);
+
+    // Toggle 'Afficher fichiers cachés'
+    int toggle_width = 220;
+    Rectangle hidden_toggle = {(float)(state->window_width - toggle_width - PADDING), 78, (float)toggle_width, 20};
+    Color toggle_bg = Fade(WHITE, 0.15f);
+    DrawRectangleRec(hidden_toggle, toggle_bg);
+    DrawRectangleLinesEx(hidden_toggle, 1, LIGHTGRAY);
+    // Checkbox
+    Rectangle cb = {hidden_toggle.x + 6, hidden_toggle.y + 3, 14, 14};
+    DrawRectangleLinesEx(cb, 2, WHITE);
+    if (state->show_hidden) {
+        DrawRectangle(cb.x + 3, cb.y + 3, cb.width - 6, cb.height - 6, SKYBLUE);
+    }
+    DrawText("Afficher fichiers caches", (int)(cb.x + 24), (int)(hidden_toggle.y + 2), 14, WHITE);
+    if (CheckCollisionPointRec(GetMousePosition(), hidden_toggle) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        state->show_hidden = !state->show_hidden;
+    }
     
     // Barre de recherche
     int search_y = 100;
@@ -572,4 +595,8 @@ void ui_set_search_limit_reached(UIState* state, bool reached) {
 
 bool ui_should_close(void) {
     return WindowShouldClose();
+}
+
+bool ui_get_show_hidden(UIState* state) {
+    return state ? state->show_hidden : false;
 }

@@ -22,6 +22,7 @@ typedef struct {
     bool is_binary_file;       // Si le fichier sélectionné est binaire
     long file_size;            // Taille du fichier sélectionné
     int file_scroll_offset;    // Offset de scroll pour le contenu du fichier
+    bool show_hidden;          // Afficher fichiers/dossiers cachés
 } UIState;
 
 // Initialise l'interface utilisateur
@@ -44,6 +45,9 @@ bool ui_is_searching(UIState* state);
 
 // Récupère le texte de recherche
 const char* ui_get_search_text(UIState* state);
+
+// Récupère l'état d'affichage des fichiers cachés
+bool ui_get_show_hidden(UIState* state);
 
 // Définit l'état de recherche
 void ui_set_searching(UIState* state, bool searching);

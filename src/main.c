@@ -18,10 +18,10 @@ static void get_parent_directory(const char* path, char* parent) {
 }
 
 // Fonction pour charger le contenu d'un répertoire
-static bool load_directory(const char* path, FileList* files) {
+static bool load_directory(const char* path, FileList* files, bool show_hidden) {
     file_list_clear(files);
     
-    if (!explore_directory_shallow(path, files)) {
+    if (!explore_directory_shallow(path, files, show_hidden)) {
         return false;
     }
     
@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     }
     
     // Charger le contenu initial
-    if (!load_directory(current_path, files)) {
+    if (!load_directory(current_path, files, false)) {
         fprintf(stderr, "Erreur lors du chargement du répertoire\n");
         file_list_destroy(files);
         return 1;
@@ -72,10 +72,13 @@ int main(int argc, char** argv) {
     }
     
     char previous_search[256] = "";
+    bool prev_show_hidden = false;
     
     // Boucle principale
     while (!ui_should_close()) {
         ui_render(ui, files, current_path);
+
+        bool current_show_hidden = ui_get_show_hidden(ui);
         
         // Gérer la recherche récursive
         const char* search_text = ui_get_search_text(ui);
@@ -83,7 +86,7 @@ int main(int argc, char** argv) {
             // Nouvelle recherche
             printf("Recherche récursive de '%s' dans %s...\n", search_text, current_path);
             file_list_clear(files);
-            bool limit_reached = !search_files_recursive(current_path, search_text, files, 0);
+            bool limit_reached = !search_files_recursive(current_path, search_text, files, 0, current_show_hidden);
             file_list_sort(files);
             ui_set_searching(ui, true);
             ui_set_search_limit_reached(ui, limit_reached);
@@ -97,10 +100,26 @@ int main(int argc, char** argv) {
         } else if (search_text[0] == '\0' && previous_search[0] != '\0') {
             // Recherche annulée, recharger le dossier
             printf("Recherche annulee\n");
-            load_directory(current_path, files);
+            load_directory(current_path, files, current_show_hidden);
             ui_set_searching(ui, false);
             ui_set_search_limit_reached(ui, false);
             previous_search[0] = '\0';
+        }
+
+        // Recharger si l'option d'affichage des fichiers cachés a changé
+        if (current_show_hidden != prev_show_hidden) {
+            if (search_text[0] != '\0') {
+                file_list_clear(files);
+                bool limit_reached = !search_files_recursive(current_path, search_text, files, 0, current_show_hidden);
+                file_list_sort(files);
+                ui_set_searching(ui, true);
+                ui_set_search_limit_reached(ui, limit_reached);
+            } else {
+                load_directory(current_path, files, current_show_hidden);
+                ui_set_searching(ui, false);
+                ui_set_search_limit_reached(ui, false);
+            }
+            prev_show_hidden = current_show_hidden;
         }
         
         // Vérifier si un dossier a été cliqué
@@ -112,7 +131,7 @@ int main(int argc, char** argv) {
             free(clicked_path);
             
             // Recharger le contenu et annuler la recherche
-            if (!load_directory(current_path, files)) {
+            if (!load_directory(current_path, files, current_show_hidden)) {
                 fprintf(stderr, "Erreur lors du chargement du répertoire\n");
             }
             ui_set_searching(ui, false);
@@ -132,7 +151,7 @@ int main(int argc, char** argv) {
                 current_path[sizeof(current_path) - 1] = '\0';
                 
                 // Recharger le contenu et annuler la recherche
-                if (!load_directory(current_path, files)) {
+                if (!load_directory(current_path, files, current_show_hidden)) {
                     fprintf(stderr, "Erreur lors du chargement du répertoire\n");
                 }
                 ui_set_searching(ui, false);

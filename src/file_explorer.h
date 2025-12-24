@@ -34,13 +34,13 @@ FileList* file_list_create(void);
 void file_list_destroy(FileList* list);
 
 // Explore un répertoire de manière récursive
-bool explore_directory(const char* path, FileList* list, int depth);
+bool explore_directory(const char* path, FileList* list, int depth, bool show_hidden);
 
 // Explore seulement le contenu direct d'un répertoire (non-récursif)
-bool explore_directory_shallow(const char* path, FileList* list);
+bool explore_directory_shallow(const char* path, FileList* list, bool show_hidden);
 
 // Recherche récursive de fichiers par nom (retourne false si limite atteinte)
-bool search_files_recursive(const char* path, const char* search_term, FileList* list, int depth);
+bool search_files_recursive(const char* path, const char* search_term, FileList* list, int depth, bool show_hidden);
 
 // Efface le contenu de la liste
 void file_list_clear(FileList* list);

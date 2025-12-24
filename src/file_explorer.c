@@ -76,7 +76,7 @@ static bool file_list_add(FileList* list, const FileEntry* entry) {
     return true;
 }
 
-bool explore_directory(const char* path, FileList* list, int depth) {
+bool explore_directory(const char* path, FileList* list, int depth, bool show_hidden) {
     DIR* dir = opendir(path);
     if (!dir) {
         fprintf(stderr, "Impossible d'ouvrir le répertoire: %s\n", path);
@@ -90,8 +90,8 @@ bool explore_directory(const char* path, FileList* list, int depth) {
             continue;
         }
         
-        // Ignorer les fichiers cachés
-        if (entry->d_name[0] == '.') {
+        // Ignorer les fichiers cachés si non demandé
+        if (!show_hidden && entry->d_name[0] == '.') {
             continue;
         }
         
@@ -118,7 +118,7 @@ bool explore_directory(const char* path, FileList* list, int depth) {
             file_list_add(list, &file_entry);
             
             // Exploration récursive
-            explore_directory(full_path, list, depth + 1);
+            explore_directory(full_path, list, depth + 1, show_hidden);
         } else {
             file_entry.type = FILE_TYPE_FILE;
             file_list_add(list, &file_entry);
@@ -129,7 +129,7 @@ bool explore_directory(const char* path, FileList* list, int depth) {
     return true;
 }
 
-bool explore_directory_shallow(const char* path, FileList* list) {
+bool explore_directory_shallow(const char* path, FileList* list, bool show_hidden) {
     DIR* dir = opendir(path);
     if (!dir) {
         fprintf(stderr, "Impossible d'ouvrir le répertoire: %s\n", path);
@@ -143,8 +143,8 @@ bool explore_directory_shallow(const char* path, FileList* list) {
             continue;
         }
         
-        // Ignorer les fichiers cachés
-        if (entry->d_name[0] == '.') {
+        // Ignorer les fichiers cachés si non demandé
+        if (!show_hidden && entry->d_name[0] == '.') {
             continue;
         }
         
@@ -179,7 +179,7 @@ bool explore_directory_shallow(const char* path, FileList* list) {
     return true;
 }
 
-bool search_files_recursive(const char* path, const char* search_term, FileList* list, int depth) {
+bool search_files_recursive(const char* path, const char* search_term, FileList* list, int depth, bool show_hidden) {
     // Limites de sécurité
     if (depth > MAX_SEARCH_DEPTH) {
         return true;  // Continuer mais ne pas descendre plus profond
@@ -214,8 +214,8 @@ bool search_files_recursive(const char* path, const char* search_term, FileList*
             continue;
         }
         
-        // Ignorer les fichiers cachés
-        if (entry->d_name[0] == '.') {
+        // Ignorer les fichiers cachés si non demandé
+        if (!show_hidden && entry->d_name[0] == '.') {
             continue;
         }
         
@@ -270,7 +270,7 @@ bool search_files_recursive(const char* path, const char* search_term, FileList*
         
         // Continuer la recherche récursive dans les sous-dossiers
         if (S_ISDIR(st.st_mode)) {
-            if (!search_files_recursive(full_path, search_term, list, depth + 1)) {
+            if (!search_files_recursive(full_path, search_term, list, depth + 1, show_hidden)) {
                 closedir(dir);
                 return false;  // Limite atteinte
             }
