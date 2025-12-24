@@ -15,6 +15,7 @@ typedef struct {
     bool go_back;        // Demande de retour au dossier parent
     char search_text[256]; // Texte de recherche
     bool search_active;    // Si la barre de recherche est active
+    bool is_searching;     // Si on affiche des résultats de recherche récursive
 } UIState;
 
 // Initialise l'interface utilisateur
@@ -31,6 +32,15 @@ char* ui_get_clicked_path(UIState* state);
 
 // Vérifie si le bouton retour a été cliqué
 bool ui_should_go_back(UIState* state);
+
+// Vérifie si on est en mode recherche
+bool ui_is_searching(UIState* state);
+
+// Récupère le texte de recherche
+const char* ui_get_search_text(UIState* state);
+
+// Définit l'état de recherche
+void ui_set_searching(UIState* state, bool searching);
 
 // Gère les événements de la fenêtre
 bool ui_should_close(void);

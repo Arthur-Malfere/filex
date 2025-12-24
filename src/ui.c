@@ -21,6 +21,7 @@ UIState* ui_init(int width, int height, const char* title) {
     state->go_back = false;
     state->search_text[0] = '\0';
     state->search_active = false;
+    state->is_searching = false;
     state->initialized = false;
     
     InitWindow(width, height, title);
@@ -183,8 +184,12 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     DrawRectangleRec(search_box, search_bg);
     DrawRectangleLinesEx(search_box, 2, state->search_active ? SKYBLUE : GRAY);
     
-    // Icône de recherche
-    DrawText("🔍", PADDING + 8, search_y + 8, 16, DARKGRAY);
+    // Icône de recherche (loupe dessinée)
+    int icon_x = PADDING + 8;
+    int icon_y = search_y + 10;
+    DrawCircle(icon_x + 5, icon_y + 5, 5, BLANK);
+    DrawCircleLines(icon_x + 5, icon_y + 5, 5, DARKGRAY);
+    DrawLineEx((Vector2){icon_x + 9, icon_y + 9}, (Vector2){icon_x + 13, icon_y + 13}, 2, DARKGRAY);
     
     // Texte de recherche
     if (state->search_text[0] != '\0') {
@@ -207,14 +212,8 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     
     // Compteur de résultats
     if (state->search_text[0] != '\0') {
-        int match_count = 0;
-        for (int i = 0; i < files->count; i++) {
-            if (matches_search(files->entries[i].name, state->search_text)) {
-                match_count++;
-            }
-        }
         char count_text[64];
-        snprintf(count_text, sizeof(count_text), "%d résultat%s", match_count, match_count > 1 ? "s" : "");
+        snprintf(count_text, sizeof(count_text), "%d resultat%s", files->count, files->count > 1 ? "s" : "");
         int count_width = MeasureText(count_text, 14);
         DrawText(count_text, state->window_width - count_width - PADDING - 10, search_y + 12, 14, DARKGRAY);
     }
@@ -231,11 +230,6 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     // Dessiner les fichiers
     for (int i = 0; i < files->count; i++) {
         FileEntry* entry = &files->entries[i];
-        
-        // Filtrer selon la recherche
-        if (!matches_search(entry->name, state->search_text)) {
-            continue;
-        }
         
         // Ne dessiner que les éléments visibles
         if (y >= content_y - LINE_HEIGHT && y < state->window_height) {
@@ -324,6 +318,20 @@ char* ui_get_clicked_path(UIState* state) {
 
 bool ui_should_go_back(UIState* state) {
     return state ? state->go_back : false;
+}
+
+bool ui_is_searching(UIState* state) {
+    return state ? state->is_searching : false;
+}
+
+const char* ui_get_search_text(UIState* state) {
+    return state ? state->search_text : "";
+}
+
+void ui_set_searching(UIState* state, bool searching) {
+    if (state) {
+        state->is_searching = searching;
+    }
 }
 
 bool ui_should_close(void) {

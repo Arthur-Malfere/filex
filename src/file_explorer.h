@@ -37,6 +37,9 @@ bool explore_directory(const char* path, FileList* list, int depth);
 // Explore seulement le contenu direct d'un répertoire (non-récursif)
 bool explore_directory_shallow(const char* path, FileList* list);
 
+// Recherche récursive de fichiers par nom
+bool search_files_recursive(const char* path, const char* search_term, FileList* list, int depth);
+
 // Efface le contenu de la liste
 void file_list_clear(FileList* list);
 

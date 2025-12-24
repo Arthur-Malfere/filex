@@ -71,9 +71,31 @@ int main(int argc, char** argv) {
         return 1;
     }
     
+    char previous_search[256] = "";
+    
     // Boucle principale
     while (!ui_should_close()) {
         ui_render(ui, files, current_path);
+        
+        // Gérer la recherche récursive
+        const char* search_text = ui_get_search_text(ui);
+        if (search_text[0] != '\0' && strcmp(search_text, previous_search) != 0) {
+            // Nouvelle recherche
+            printf("Recherche récursive de '%s' dans %s...\n", search_text, current_path);
+            file_list_clear(files);
+            search_files_recursive(current_path, search_text, files, 0);
+            file_list_sort(files);
+            ui_set_searching(ui, true);
+            strncpy(previous_search, search_text, sizeof(previous_search) - 1);
+            previous_search[sizeof(previous_search) - 1] = '\0';
+            printf("Résultats: %d\n", files->count);
+        } else if (search_text[0] == '\0' && previous_search[0] != '\0') {
+            // Recherche annulée, recharger le dossier
+            printf("Recherche annulée\n");
+            load_directory(current_path, files);
+            ui_set_searching(ui, false);
+            previous_search[0] = '\0';
+        }
         
         // Vérifier si un dossier a été cliqué
         char* clicked_path = ui_get_clicked_path(ui);
@@ -83,10 +105,12 @@ int main(int argc, char** argv) {
             current_path[sizeof(current_path) - 1] = '\0';
             free(clicked_path);
             
-            // Recharger le contenu
+            // Recharger le contenu et annuler la recherche
             if (!load_directory(current_path, files)) {
                 fprintf(stderr, "Erreur lors du chargement du répertoire\n");
             }
+            ui_set_searching(ui, false);
+            previous_search[0] = '\0';
         }
         
         // Vérifier si le bouton retour a été cliqué
@@ -100,10 +124,12 @@ int main(int argc, char** argv) {
                 strncpy(current_path, parent, sizeof(current_path) - 1);
                 current_path[sizeof(current_path) - 1] = '\0';
                 
-                // Recharger le contenu
+                // Recharger le contenu et annuler la recherche
                 if (!load_directory(current_path, files)) {
                     fprintf(stderr, "Erreur lors du chargement du répertoire\n");
                 }
+                ui_set_searching(ui, false);
+                previous_search[0] = '\0';
             }
         }
     }

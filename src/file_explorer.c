@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -152,6 +153,78 @@ bool explore_directory_shallow(const char* path, FileList* list) {
         }
         
         file_list_add(list, &file_entry);
+    }
+    
+    closedir(dir);
+    return true;
+}
+
+bool search_files_recursive(const char* path, const char* search_term, FileList* list, int depth) {
+    DIR* dir = opendir(path);
+    if (!dir) {
+        return false;
+    }
+    
+    // Convertir le terme de recherche en minuscules
+    char lower_search[256];
+    for (int i = 0; search_term[i] && i < 255; i++) {
+        lower_search[i] = tolower(search_term[i]);
+        lower_search[i + 1] = '\0';
+    }
+    
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != NULL) {
+        // Ignorer . et ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        
+        // Ignorer les fichiers cachés
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+        
+        char full_path[MAX_PATH_LENGTH];
+        snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+        
+        struct stat st;
+        if (stat(full_path, &st) == -1) {
+            continue;
+        }
+        
+        // Vérifier si le nom correspond à la recherche
+        char lower_name[256];
+        for (int i = 0; entry->d_name[i] && i < 255; i++) {
+            lower_name[i] = tolower(entry->d_name[i]);
+            lower_name[i + 1] = '\0';
+        }
+        
+        bool matches = strstr(lower_name, lower_search) != NULL;
+        
+        if (matches) {
+            FileEntry file_entry;
+            strncpy(file_entry.path, full_path, sizeof(file_entry.path) - 1);
+            file_entry.path[sizeof(file_entry.path) - 1] = '\0';
+            
+            strncpy(file_entry.name, entry->d_name, sizeof(file_entry.name) - 1);
+            file_entry.name[sizeof(file_entry.name) - 1] = '\0';
+            
+            file_entry.size = st.st_size;
+            file_entry.depth = depth;
+            
+            if (S_ISDIR(st.st_mode)) {
+                file_entry.type = FILE_TYPE_DIRECTORY;
+            } else {
+                file_entry.type = FILE_TYPE_FILE;
+            }
+            
+            file_list_add(list, &file_entry);
+        }
+        
+        // Continuer la recherche récursive dans les sous-dossiers
+        if (S_ISDIR(st.st_mode)) {
+            search_files_recursive(full_path, search_term, list, depth + 1);
+        }
     }
     
     closedir(dir);
