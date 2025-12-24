@@ -26,6 +26,7 @@ UIState* ui_init(int width, int height, const char* title) {
     state->initialized = false;
     
     InitWindow(width, height, title);
+    SetWindowState(FLAG_WINDOW_RESIZABLE);
     SetTargetFPS(60);
     
     state->font = GetFontDefault();
@@ -82,6 +83,12 @@ static bool matches_search(const char* filename, const char* search) {
 
 void ui_render(UIState* state, FileList* files, const char* current_path) {
     if (!state || !files) return;
+    
+    // Mettre à jour les dimensions si la fenêtre a été redimensionnée
+    if (IsWindowResized()) {
+        state->window_width = GetScreenWidth();
+        state->window_height = GetScreenHeight();
+    }
     
     // Réinitialiser le chemin cliqué et go_back
     if (state->clicked_path) {
