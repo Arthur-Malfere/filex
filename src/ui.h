@@ -29,6 +29,12 @@ typedef struct {
     long file_size;            // Taille du fichier sélectionné
     int file_scroll_offset;    // Offset de scroll pour le contenu du fichier
     bool show_hidden;          // Afficher fichiers/dossiers cachés
+    bool search_by_content;    // Rechercher dans le contenu (vs par nom)
+    // Statistiques de recherche
+    int search_files_scanned;
+    int search_dirs_scanned;
+    int search_files_matched;
+    double search_elapsed_time;
     // Menu contextuel
     bool menu_active;
     int menu_x;
@@ -64,6 +70,9 @@ const char* ui_get_search_text(UIState* state);
 // Récupère l'état d'affichage des fichiers cachés
 bool ui_get_show_hidden(UIState* state);
 
+// Récupère l'état de la recherche par contenu
+bool ui_get_search_by_content(UIState* state);
+
 // Création: vérifie si une création a été confirmée
 bool ui_creation_confirmed(UIState* state);
 
@@ -81,6 +90,9 @@ void ui_set_searching(UIState* state, bool searching);
 
 // Définit si la limite de résultats a été atteinte
 void ui_set_search_limit_reached(UIState* state, bool reached);
+
+// Met à jour les statistiques de recherche
+void ui_set_search_stats(UIState* state, int files_scanned, int dirs_scanned, int files_matched, double elapsed_time);
 
 // Gère les événements de la fenêtre
 bool ui_should_close(void);

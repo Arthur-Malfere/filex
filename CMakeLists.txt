@@ -16,7 +16,10 @@ set(SOURCES
 
 add_executable(filex ${SOURCES})
 
-target_link_libraries(filex raylib)
+# Trouver pthread
+find_package(Threads REQUIRED)
+
+target_link_libraries(filex raylib Threads::Threads)
 
 # Définir le répertoire d'include
 target_include_directories(filex PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

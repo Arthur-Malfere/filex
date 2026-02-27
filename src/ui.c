@@ -30,6 +30,11 @@ UIState* ui_init(int width, int height, const char* title) {
     state->file_scroll_offset = 0;
     state->initialized = false;
     state->show_hidden = false;
+    state->search_by_content = false;
+    state->search_files_scanned = 0;
+    state->search_dirs_scanned = 0;
+    state->search_files_matched = 0;
+    state->search_elapsed_time = 0.0;
     state->menu_active = false;
     state->menu_x = 0;
     state->menu_y = 0;
@@ -365,15 +370,65 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     
     // Compteur de résultats
     if (state->search_text[0] != '\0') {
-        char count_text[64];
+        char count_text[128];
         if (state->search_limit_reached) {
             snprintf(count_text, sizeof(count_text), "%d+ resultats (limite)", files->count);
+        } else if (state->is_searching) {
+            snprintf(count_text, sizeof(count_text), "%d resultat%s (recherche...)", files->count, files->count > 1 ? "s" : "");
         } else {
             snprintf(count_text, sizeof(count_text), "%d resultat%s", files->count, files->count > 1 ? "s" : "");
         }
         int count_width = MeasureText(count_text, 14);
         DrawText(count_text, state->window_width - count_width - PADDING - 10, search_y + 12, 14, 
-                 state->search_limit_reached ? ORANGE : DARKGRAY);
+                 state->search_limit_reached ? ORANGE : (state->is_searching ? BLUE : DARKGRAY));
+    }
+    
+    // Toggle recherche par contenu (sous la barre de recherche)
+    int toggle_content_y = search_y + search_height + 5;
+    Rectangle content_toggle = {PADDING, (float)toggle_content_y, 200, 20};
+    Color toggle_content_bg = Fade(WHITE, 0.15f);
+    DrawRectangleRec(content_toggle, toggle_content_bg);
+    DrawRectangleLinesEx(content_toggle, 1, LIGHTGRAY);
+    
+    // Checkbox
+    Rectangle content_cb = {content_toggle.x + 6, content_toggle.y + 3, 14, 14};
+    DrawRectangleLinesEx(content_cb, 2, DARKGRAY);
+    if (state->search_by_content) {
+        DrawRectangle(content_cb.x + 3, content_cb.y + 3, content_cb.width - 6, content_cb.height - 6, ORANGE);
+    }
+    DrawText("Chercher dans contenu", (int)(content_cb.x + 24), (int)(content_toggle.y + 2), 14, DARKGRAY);
+    if (CheckCollisionPointRec(GetMousePosition(), content_toggle) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        state->search_by_content = !state->search_by_content;
+        // Déclencher une nouvelle recherche si on est en mode recherche
+        if (state->search_text[0] != '\0') {
+            // La recherche sera relancée dans la boucle principale
+        }
+    }
+    
+    // Barre de progression si recherche en cours
+    int progress_y = toggle_content_y + 25;
+    if (state->is_searching) {
+        DrawRectangle(PADDING, progress_y, state->window_width - 2 * PADDING, 25, Fade(SKYBLUE, 0.1f));
+        
+        char progress_text[256];
+        if (state->search_by_content) {
+            snprintf(progress_text, sizeof(progress_text), 
+                    "Scan: %d fichiers, %d dossiers | Trouvés: %d | Temps: %.1fs",
+                    state->search_files_scanned, state->search_dirs_scanned, 
+                    state->search_files_matched, state->search_elapsed_time);
+        } else {
+            snprintf(progress_text, sizeof(progress_text), 
+                    "Scan: %d fichiers, %d dossiers | Trouvés: %d | Temps: %.1fs",
+                    state->search_files_scanned, state->search_dirs_scanned, 
+                    state->search_files_matched, state->search_elapsed_time);
+        }
+        DrawText(progress_text, PADDING + 5, progress_y + 5, 14, BLUE);
+        
+        // Animation de chargement
+        int spinner_x = state->window_width - 40;
+        int spinner_y = progress_y + 12;
+        float angle = (float)((int)(GetTime() * 500) % 360);
+        DrawCircleSector((Vector2){spinner_x, spinner_y}, 8, angle, angle + 270, 16, BLUE);
     }
     
     // Détection du clic sur la barre de recherche
@@ -518,7 +573,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     }
     
     // Zone de défilement
-    int content_y = 140;
+    int content_y = state->is_searching ? 200 : 170;  // Plus d'espace si recherche en cours
     int y = content_y - state->scroll_offset;
     
     // Calculer la largeur de la zone des fichiers (split view si fichier sélectionné)
@@ -774,12 +829,25 @@ void ui_set_search_limit_reached(UIState* state, bool reached) {
     }
 }
 
+void ui_set_search_stats(UIState* state, int files_scanned, int dirs_scanned, int files_matched, double elapsed_time) {
+    if (state) {
+        state->search_files_scanned = files_scanned;
+        state->search_dirs_scanned = dirs_scanned;
+        state->search_files_matched = files_matched;
+        state->search_elapsed_time = elapsed_time;
+    }
+}
+
 bool ui_should_close(void) {
     return WindowShouldClose();
 }
 
 bool ui_get_show_hidden(UIState* state) {
     return state ? state->show_hidden : false;
+}
+
+bool ui_get_search_by_content(UIState* state) {
+    return state ? state->search_by_content : false;
 }
 
 bool ui_creation_confirmed(UIState* state) {
