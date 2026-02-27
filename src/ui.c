@@ -3,11 +3,67 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 
 #define FONT_SIZE 20
 #define LINE_HEIGHT 25
 #define PADDING 10
 #define INDENT_SIZE 20
+
+static ThemeColors get_theme_colors(Theme theme) {
+    ThemeColors colors;
+    
+    if (theme == THEME_LIGHT) {
+        colors.bg_primary = RAYWHITE;
+        colors.bg_secondary = (Color){230, 230, 230, 255};
+        colors.text_primary = BLACK;
+        colors.text_secondary = DARKGRAY;
+        colors.text_disabled = LIGHTGRAY;
+        colors.highlight = (Color){173, 216, 230, 255}; // Light blue
+        colors.highlight_hover = (Color){100, 180, 255, 255};
+        colors.accent = SKYBLUE;
+        colors.border = LIGHTGRAY;
+    } else {
+        // THEME_DARK
+        colors.bg_primary = (Color){30, 30, 30, 255};
+        colors.bg_secondary = (Color){45, 45, 45, 255};
+        colors.text_primary = WHITE;
+        colors.text_secondary = (Color){200, 200, 200, 255};
+        colors.text_disabled = (Color){100, 100, 100, 255};
+        colors.highlight = (Color){70, 130, 180, 255}; // Steel blue
+        colors.highlight_hover = (Color){100, 150, 220, 255};
+        colors.accent = (Color){100, 180, 255, 255}; // Light blue accent
+        colors.border = (Color){60, 60, 60, 255};
+    }
+    
+    return colors;
+}
+
+static void format_time(time_t time_val, char* buffer, size_t buffer_size) {
+    if (time_val == 0) {
+        snprintf(buffer, buffer_size, "---");
+        return;
+    }
+    
+    struct tm* tm_info = localtime(&time_val);
+    strftime(buffer, buffer_size, "%Y-%m-%d %H:%M", tm_info);
+}
+
+static void format_permissions(mode_t mode, char* buffer, size_t buffer_size) {
+    if (buffer_size < 10) return;
+    
+    buffer[0] = (S_ISDIR(mode)) ? 'd' : (S_ISLNK(mode)) ? 'l' : '-';
+    buffer[1] = (mode & S_IRUSR) ? 'r' : '-';
+    buffer[2] = (mode & S_IWUSR) ? 'w' : '-';
+    buffer[3] = (mode & S_IXUSR) ? 'x' : '-';
+    buffer[4] = (mode & S_IRGRP) ? 'r' : '-';
+    buffer[5] = (mode & S_IWGRP) ? 'w' : '-';
+    buffer[6] = (mode & S_IXGRP) ? 'x' : '-';
+    buffer[7] = (mode & S_IROTH) ? 'r' : '-';
+    buffer[8] = (mode & S_IWOTH) ? 'w' : '-';
+    buffer[9] = (mode & S_IXOTH) ? 'x' : '-';
+    buffer[10] = '\0';
+}
 
 UIState* ui_init(int width, int height, const char* title) {
     UIState* state = (UIState*)malloc(sizeof(UIState));
@@ -35,6 +91,8 @@ UIState* ui_init(int width, int height, const char* title) {
     state->search_dirs_scanned = 0;
     state->search_files_matched = 0;
     state->search_elapsed_time = 0.0;
+    state->current_theme = THEME_LIGHT;
+    state->colors = get_theme_colors(THEME_LIGHT);
     state->menu_active = false;
     state->menu_x = 0;
     state->menu_y = 0;
@@ -278,32 +336,44 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     }
     
     BeginDrawing();
-    ClearBackground(RAYWHITE);
+    ClearBackground(state->colors.bg_primary);
     
-    // En-tête avec bouton retour
-    DrawRectangle(0, 0, state->window_width, 40, DARKGRAY);
-    DrawText("Explorateur de Fichiers", PADDING + 100, 10, FONT_SIZE, WHITE);
+    // En-tête avec bouton retour et toggle thème
+    DrawRectangle(0, 0, state->window_width, 40, state->colors.bg_secondary);
+    DrawText("Explorateur de Fichiers", PADDING + 100, 10, FONT_SIZE, state->colors.text_primary);
     
     // Bouton retour
     Rectangle back_button = {PADDING, 8, 80, 24};
-    Color back_color = LIGHTGRAY;
+    Color back_color = state->colors.bg_secondary;
     if (CheckCollisionPointRec(GetMousePosition(), back_button)) {
-        back_color = GRAY;
+        back_color = state->colors.highlight_hover;
         if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
             state->go_back = true;
         }
     }
     DrawRectangleRec(back_button, back_color);
-    DrawText("< Retour", PADDING + 5, 12, 16, DARKGRAY);
+    DrawText("< Retour", PADDING + 5, 12, 16, state->colors.text_primary);
+    
+    // Bouton toggle thème (à droite)
+    Rectangle theme_button = {(float)(state->window_width - 40), 8, 32, 24};
+    Color theme_color = state->colors.bg_secondary;
+    if (CheckCollisionPointRec(GetMousePosition(), theme_button)) {
+        theme_color = state->colors.highlight_hover;
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            ui_toggle_theme(state);
+        }
+    }
+    DrawRectangleRec(theme_button, theme_color);
+    DrawText(state->current_theme == THEME_LIGHT ? "☀" : "🌙", (int)theme_button.x + 8, 10, 16, state->colors.text_primary);
     
     // Chemin actuel
-    DrawRectangle(0, 40, state->window_width, 35, LIGHTGRAY);
+    DrawRectangle(0, 40, state->window_width, 35, state->colors.bg_secondary);
     char path_display[512];
     snprintf(path_display, sizeof(path_display), "Chemin: %s", current_path);
-    DrawText(path_display, PADDING, 48, 18, DARKGRAY);
+    DrawText(path_display, PADDING, 48, 18, state->colors.text_primary);
     
     // Statistiques
-    DrawRectangle(0, 75, state->window_width, 25, GRAY);
+    DrawRectangle(0, 75, state->window_width, 25, state->colors.bg_secondary);
     char stats[256];
     int dir_count = 0, file_count = 0;
     for (int i = 0; i < files->count; i++) {
@@ -314,7 +384,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
         }
     }
     snprintf(stats, sizeof(stats), "%d dossiers, %d fichiers", dir_count, file_count);
-    DrawText(stats, PADDING, 80, 16, WHITE);
+    DrawText(stats, PADDING, 80, 16, state->colors.text_primary);
 
     // Toggle 'Afficher fichiers cachés'
     int toggle_width = 220;
@@ -579,12 +649,27 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     // Calculer la largeur de la zone des fichiers (split view si fichier sélectionné)
     int file_list_width = state->selected_file_path ? state->window_width / 2 - 5 : state->window_width;
     
+    // En-tête de colonnes
+    DrawRectangle(0, content_y, file_list_width, LINE_HEIGHT, state->colors.bg_secondary);
+    DrawLine(0, content_y + LINE_HEIGHT, file_list_width, content_y + LINE_HEIGHT, state->colors.border);
+    
+    int col_name_width = 300;
+    int col_size_width = 100;
+    int col_date_width = 150;
+    
+    DrawText("Nom", PADDING + 30, content_y + 5, 14, state->colors.text_secondary);
+    DrawText("Taille", PADDING + col_name_width, content_y + 5, 14, state->colors.text_secondary);
+    DrawText("Modifié", PADDING + col_name_width + col_size_width, content_y + 5, 14, state->colors.text_secondary);
+    
+    int header_y = content_y + LINE_HEIGHT;
+    y = header_y - state->scroll_offset;
+    
     // Dessiner les fichiers
     for (int i = 0; i < files->count; i++) {
         FileEntry* entry = &files->entries[i];
         
         // Ne dessiner que les éléments visibles
-        if (y >= content_y - LINE_HEIGHT && y < state->window_height) {
+        if (y >= header_y - LINE_HEIGHT && y < state->window_height) {
             int x = PADDING + (entry->depth * INDENT_SIZE);
             
             // Fond de sélection
@@ -592,7 +677,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             Rectangle item_rect = { 0, (float)y, (float)file_list_width, LINE_HEIGHT };
             
             if (CheckCollisionPointRec(GetMousePosition(), item_rect)) {
-                bg_color = Fade(SKYBLUE, 0.2f);
+                bg_color = state->colors.highlight;
                 if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                     state->selected_index = i;
                     if (entry->type == FILE_TYPE_DIRECTORY) {
@@ -614,40 +699,49 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             
             DrawRectangleRec(item_rect, bg_color);
             
+            if (i == state->selected_index) {
+                bg_color = state->colors.highlight_hover;
+                DrawRectangleRec(item_rect, Fade(bg_color, 0.3f));
+            }
+            
             // Icône dessinée
+            Color icon_color = (entry->type == FILE_TYPE_DIRECTORY) ? state->colors.accent : state->colors.text_secondary;
             if (entry->type == FILE_TYPE_DIRECTORY) {
                 // Dossier : rectangle avec onglet
-                DrawRectangle(x + 2, y + 8, 18, 14, BLUE);
-                DrawRectangle(x + 2, y + 5, 8, 3, BLUE);
+                DrawRectangle(x + 2, y + 8, 18, 14, icon_color);
+                DrawRectangle(x + 2, y + 5, 8, 3, icon_color);
             } else {
                 // Fichier : rectangle avec coin plié
-                DrawRectangle(x + 3, y + 5, 14, 17, LIGHTGRAY);
-                DrawRectangle(x + 3, y + 5, 14, 1, DARKGRAY);
-                DrawRectangle(x + 3, y + 5, 1, 17, DARKGRAY);
-                DrawRectangle(x + 17, y + 5, 1, 17, DARKGRAY);
-                DrawRectangle(x + 3, y + 22, 15, 1, DARKGRAY);
+                DrawRectangle(x + 3, y + 5, 14, 17, Fade(icon_color, 0.5f));
+                DrawRectangle(x + 3, y + 5, 14, 1, icon_color);
+                DrawRectangle(x + 3, y + 5, 1, 17, icon_color);
+                DrawRectangle(x + 17, y + 5, 1, 17, icon_color);
+                DrawRectangle(x + 3, y + 22, 15, 1, icon_color);
                 // Coin plié
                 DrawTriangle(
                     (Vector2){x + 17, y + 5},
                     (Vector2){x + 12, y + 5},
                     (Vector2){x + 17, y + 10},
-                    GRAY
+                    icon_color
                 );
             }
             
-            // Nom
-            DrawText(entry->name, x + 28, y + 3, FONT_SIZE - 2, BLACK);
+            // Colonne 1: Nom
+            DrawText(entry->name, x + 28, y + 3, FONT_SIZE - 2, state->colors.text_primary);
             
-            // Taille (seulement pour les fichiers)
+            // Colonne 2: Taille (seulement pour les fichiers)
             if (entry->type == FILE_TYPE_FILE) {
                 char size_str[64];
                 format_size(entry->size, size_str, sizeof(size_str));
-                int size_width = MeasureText(size_str, FONT_SIZE - 4);
-                DrawText(size_str, state->window_width - size_width - PADDING, y + 5, FONT_SIZE - 4, DARKGRAY);
+                DrawText(size_str, PADDING + col_name_width, y + 5, FONT_SIZE - 4, state->colors.text_secondary);
             } else {
-                // Flèche pour les dossiers
-                DrawText(">", state->window_width - 30, y + 3, FONT_SIZE, DARKGRAY);
+                DrawText("[dossier]", PADDING + col_name_width, y + 5, FONT_SIZE - 4, state->colors.text_secondary);
             }
+            
+            // Colonne 3: Date de modification
+            char date_str[32];
+            format_time(entry->mod_time, date_str, sizeof(date_str));
+            DrawText(date_str, PADDING + col_name_width + col_size_width, y + 5, FONT_SIZE - 4, state->colors.text_secondary);
         }
         
         y += LINE_HEIGHT;
@@ -835,6 +929,24 @@ void ui_set_search_stats(UIState* state, int files_scanned, int dirs_scanned, in
         state->search_dirs_scanned = dirs_scanned;
         state->search_files_matched = files_matched;
         state->search_elapsed_time = elapsed_time;
+    }
+}
+
+void ui_set_theme(UIState* state, Theme theme) {
+    if (state) {
+        state->current_theme = theme;
+        state->colors = get_theme_colors(theme);
+    }
+}
+
+Theme ui_get_theme(UIState* state) {
+    return state ? state->current_theme : THEME_LIGHT;
+}
+
+void ui_toggle_theme(UIState* state) {
+    if (state) {
+        state->current_theme = (state->current_theme == THEME_LIGHT) ? THEME_DARK : THEME_LIGHT;
+        state->colors = get_theme_colors(state->current_theme);
     }
 }
 

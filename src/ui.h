@@ -10,6 +10,23 @@ typedef enum {
     CREATE_DIRECTORY = 2
 } CreateType;
 
+typedef enum {
+    THEME_LIGHT,
+    THEME_DARK
+} Theme;
+
+typedef struct {
+    Color bg_primary;
+    Color bg_secondary;
+    Color text_primary;
+    Color text_secondary;
+    Color text_disabled;
+    Color highlight;
+    Color highlight_hover;
+    Color accent;
+    Color border;
+} ThemeColors;
+
 typedef struct {
     int scroll_offset;
     int selected_index;
@@ -35,6 +52,9 @@ typedef struct {
     int search_dirs_scanned;
     int search_files_matched;
     double search_elapsed_time;
+    // Thème
+    Theme current_theme;
+    ThemeColors colors;
     // Menu contextuel
     bool menu_active;
     int menu_x;
@@ -93,6 +113,11 @@ void ui_set_search_limit_reached(UIState* state, bool reached);
 
 // Met à jour les statistiques de recherche
 void ui_set_search_stats(UIState* state, int files_scanned, int dirs_scanned, int files_matched, double elapsed_time);
+
+// Gère le thème
+void ui_set_theme(UIState* state, Theme theme);
+Theme ui_get_theme(UIState* state);
+void ui_toggle_theme(UIState* state);
 
 // Gère les événements de la fenêtre
 bool ui_should_close(void);

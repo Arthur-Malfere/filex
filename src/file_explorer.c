@@ -97,6 +97,22 @@ static bool file_list_add(FileList* list, const FileEntry* entry) {
     return true;
 }
 
+// Fonction pour récupérer les métadonnées d'un fichier
+static void get_file_metadata(const char* path, FileEntry* entry) {
+    struct stat st;
+    if (stat(path, &st) == 0) {
+        entry->mod_time = st.st_mtime;
+        entry->permissions = st.st_mode;
+        entry->owner_uid = st.st_uid;
+        entry->owner_gid = st.st_gid;
+    } else {
+        entry->mod_time = 0;
+        entry->permissions = 0;
+        entry->owner_uid = 0;
+        entry->owner_gid = 0;
+    }
+}
+
 bool explore_directory(const char* path, FileList* list, int depth, bool show_hidden) {
     DIR* dir = opendir(path);
     if (!dir) {
@@ -133,6 +149,9 @@ bool explore_directory(const char* path, FileList* list, int depth, bool show_hi
         
         file_entry.size = st.st_size;
         file_entry.depth = depth;
+        
+        // Récupérer les métadonnées
+        get_file_metadata(full_path, &file_entry);
         
         if (S_ISDIR(st.st_mode)) {
             file_entry.type = FILE_TYPE_DIRECTORY;
@@ -186,6 +205,9 @@ bool explore_directory_shallow(const char* path, FileList* list, bool show_hidde
         
         file_entry.size = st.st_size;
         file_entry.depth = 0;
+        
+        // Récupérer les métadonnées
+        get_file_metadata(full_path, &file_entry);
         
         if (S_ISDIR(st.st_mode)) {
             file_entry.type = FILE_TYPE_DIRECTORY;
@@ -279,6 +301,9 @@ bool search_files_recursive(const char* path, const char* search_term, FileList*
             
             file_entry.size = st.st_size;
             file_entry.depth = depth;
+            
+            // Récupérer les métadonnées
+            get_file_metadata(full_path, &file_entry);
             
             if (S_ISDIR(st.st_mode)) {
                 file_entry.type = FILE_TYPE_DIRECTORY;
@@ -623,6 +648,9 @@ bool search_files_by_content(const char* path, const char* search_term, FileList
                 file_entry.depth = depth;
                 file_entry.type = FILE_TYPE_FILE;
                 
+                // Récupérer les métadonnées
+                get_file_metadata(full_path, &file_entry);
+                
                 file_list_add(list, &file_entry);
             }
         }
@@ -742,6 +770,9 @@ static bool search_recursive_with_stats(AsyncSearch* search, const char* path, c
             
             file_entry.size = st.st_size;
             file_entry.depth = depth;
+            
+            // Récupérer les métadonnées
+            get_file_metadata(full_path, &file_entry);
             
             if (S_ISDIR(st.st_mode)) {
                 file_entry.type = FILE_TYPE_DIRECTORY;

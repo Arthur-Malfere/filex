@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <pthread.h>
+#include <sys/stat.h>
 
 #define MAX_PATH_LENGTH 1024
 #define MAX_FILES 10000
@@ -24,6 +25,11 @@ typedef struct {
     FileType type;
     long size;
     int depth;
+    // Métadonnées
+    time_t mod_time;           // Date de modification
+    mode_t permissions;         // Permissions (mode)
+    uid_t owner_uid;           // UID du propriétaire
+    gid_t owner_gid;           // GID du groupe
 } FileEntry;
 
 typedef struct {
