@@ -143,6 +143,30 @@ static Color get_file_color(FileType type) {
     return type == FILE_TYPE_DIRECTORY ? BLUE : DARKGRAY;
 }
 
+// Vérifier si un fichier est caché (commence par '.')
+static bool is_hidden_file(const char* filename) {
+    return filename && filename[0] == '.';
+}
+
+// Obtenir la couleur de texte adaptée au thème pour fichiers cachés/sélectionnés
+static Color get_text_color_for_entry(UIState* state, const char* filename, bool is_selected) {
+    if (is_selected) {
+        return state->colors.text_primary;
+    }
+    
+    if (is_hidden_file(filename)) {
+        // Pour les fichiers cachés: utiliser une couleur plus atténuée avec le thème
+        return state->colors.text_secondary;
+    }
+    
+    return state->colors.text_primary;
+}
+
+// Obtenir l'opacité pour un fichier (0.5 pour cachés, 1.0 pour normaux)
+static float get_entry_opacity(const char* filename) {
+    return is_hidden_file(filename) ? 0.6f : 1.0f;
+}
+
 static bool is_binary_content(const char* content, long size) {
     // Vérifier les premiers octets pour détecter du contenu binaire
     long check_size = size < 512 ? size : 512;
@@ -389,16 +413,16 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     // Toggle 'Afficher fichiers cachés'
     int toggle_width = 220;
     Rectangle hidden_toggle = {(float)(state->window_width - toggle_width - PADDING), 78, (float)toggle_width, 20};
-    Color toggle_bg = Fade(WHITE, 0.15f);
+    Color toggle_bg = Fade(state->colors.bg_primary, 0.5f);
     DrawRectangleRec(hidden_toggle, toggle_bg);
-    DrawRectangleLinesEx(hidden_toggle, 1, LIGHTGRAY);
+    DrawRectangleLinesEx(hidden_toggle, 1, state->colors.border);
     // Checkbox
     Rectangle cb = {hidden_toggle.x + 6, hidden_toggle.y + 3, 14, 14};
-    DrawRectangleLinesEx(cb, 2, WHITE);
+    DrawRectangleLinesEx(cb, 2, state->colors.text_primary);
     if (state->show_hidden) {
-        DrawRectangle(cb.x + 3, cb.y + 3, cb.width - 6, cb.height - 6, SKYBLUE);
+        DrawRectangle(cb.x + 3, cb.y + 3, cb.width - 6, cb.height - 6, state->colors.accent);
     }
-    DrawText("Afficher fichiers caches", (int)(cb.x + 24), (int)(hidden_toggle.y + 2), 14, WHITE);
+    DrawText("Afficher fichiers caches", (int)(cb.x + 24), (int)(hidden_toggle.y + 2), 14, state->colors.text_primary);
     if (CheckCollisionPointRec(GetMousePosition(), hidden_toggle) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         state->show_hidden = !state->show_hidden;
     }
@@ -408,34 +432,34 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     int search_height = 35;
     Rectangle search_box = {PADDING, (float)search_y + 5, (float)state->window_width - 2 * PADDING, (float)search_height - 10};
     
-    Color search_bg = state->search_active ? WHITE : Fade(WHITE, 0.7f);
+    Color search_bg = state->search_active ? state->colors.bg_primary : Fade(state->colors.bg_primary, 0.8f);
     DrawRectangleRec(search_box, search_bg);
-    DrawRectangleLinesEx(search_box, 2, state->search_active ? SKYBLUE : GRAY);
+    DrawRectangleLinesEx(search_box, 2, state->search_active ? state->colors.accent : state->colors.border);
     
     // Icône de recherche (loupe dessinée)
     int icon_x = PADDING + 8;
     int icon_y = search_y + 10;
     DrawCircle(icon_x + 5, icon_y + 5, 5, BLANK);
-    DrawCircleLines(icon_x + 5, icon_y + 5, 5, DARKGRAY);
-    DrawLineEx((Vector2){icon_x + 9, icon_y + 9}, (Vector2){icon_x + 13, icon_y + 13}, 2, DARKGRAY);
+    DrawCircleLines(icon_x + 5, icon_y + 5, 5, state->colors.text_secondary);
+    DrawLineEx((Vector2){icon_x + 9, icon_y + 9}, (Vector2){icon_x + 13, icon_y + 13}, 2, state->colors.text_secondary);
     
     // Texte de recherche
     if (state->search_text[0] != '\0') {
-        DrawText(state->search_text, PADDING + 35, search_y + 10, 16, BLACK);
+        DrawText(state->search_text, PADDING + 35, search_y + 10, 16, state->colors.text_primary);
         
         // Curseur clignotant
         if (state->search_active && ((int)(GetTime() * 2) % 2 == 0)) {
             int text_width = MeasureText(state->search_text, 16);
-            DrawText("|", PADDING + 35 + text_width, search_y + 10, 16, BLACK);
+            DrawText("|", PADDING + 35 + text_width, search_y + 10, 16, state->colors.text_primary);
         }
     } else if (state->search_active) {
         // Curseur seul
         if ((int)(GetTime() * 2) % 2 == 0) {
-            DrawText("|", PADDING + 35, search_y + 10, 16, BLACK);
+            DrawText("|", PADDING + 35, search_y + 10, 16, state->colors.text_primary);
         }
     } else {
         // Placeholder
-        DrawText("Rechercher... (Ctrl+F)", PADDING + 35, search_y + 10, 16, GRAY);
+        DrawText("Rechercher... (Ctrl+F)", PADDING + 35, search_y + 10, 16, state->colors.text_disabled);
     }
     
     // Compteur de résultats
@@ -449,24 +473,24 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             snprintf(count_text, sizeof(count_text), "%d resultat%s", files->count, files->count > 1 ? "s" : "");
         }
         int count_width = MeasureText(count_text, 14);
-        DrawText(count_text, state->window_width - count_width - PADDING - 10, search_y + 12, 14, 
-                 state->search_limit_reached ? ORANGE : (state->is_searching ? BLUE : DARKGRAY));
+        Color count_color = state->search_limit_reached ? ORANGE : (state->is_searching ? state->colors.accent : state->colors.text_secondary);
+        DrawText(count_text, state->window_width - count_width - PADDING - 10, search_y + 12, 14, count_color);
     }
     
     // Toggle recherche par contenu (sous la barre de recherche)
     int toggle_content_y = search_y + search_height + 5;
     Rectangle content_toggle = {PADDING, (float)toggle_content_y, 200, 20};
-    Color toggle_content_bg = Fade(WHITE, 0.15f);
+    Color toggle_content_bg = Fade(state->colors.bg_primary, 0.5f);
     DrawRectangleRec(content_toggle, toggle_content_bg);
-    DrawRectangleLinesEx(content_toggle, 1, LIGHTGRAY);
+    DrawRectangleLinesEx(content_toggle, 1, state->colors.border);
     
     // Checkbox
     Rectangle content_cb = {content_toggle.x + 6, content_toggle.y + 3, 14, 14};
-    DrawRectangleLinesEx(content_cb, 2, DARKGRAY);
+    DrawRectangleLinesEx(content_cb, 2, state->colors.text_secondary);
     if (state->search_by_content) {
         DrawRectangle(content_cb.x + 3, content_cb.y + 3, content_cb.width - 6, content_cb.height - 6, ORANGE);
     }
-    DrawText("Chercher dans contenu", (int)(content_cb.x + 24), (int)(content_toggle.y + 2), 14, DARKGRAY);
+    DrawText("Chercher dans contenu", (int)(content_cb.x + 24), (int)(content_toggle.y + 2), 14, state->colors.text_primary);
     if (CheckCollisionPointRec(GetMousePosition(), content_toggle) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         state->search_by_content = !state->search_by_content;
         // Déclencher une nouvelle recherche si on est en mode recherche
@@ -478,7 +502,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     // Barre de progression si recherche en cours
     int progress_y = toggle_content_y + 25;
     if (state->is_searching) {
-        DrawRectangle(PADDING, progress_y, state->window_width - 2 * PADDING, 25, Fade(SKYBLUE, 0.1f));
+        DrawRectangle(PADDING, progress_y, state->window_width - 2 * PADDING, 25, Fade(state->colors.accent, 0.1f));
         
         char progress_text[256];
         if (state->search_by_content) {
@@ -492,7 +516,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
                     state->search_files_scanned, state->search_dirs_scanned, 
                     state->search_files_matched, state->search_elapsed_time);
         }
-        DrawText(progress_text, PADDING + 5, progress_y + 5, 14, BLUE);
+        DrawText(progress_text, PADDING + 5, progress_y + 5, 14, state->colors.accent);
         
         // Animation de chargement
         int spinner_x = state->window_width - 40;
@@ -511,14 +535,14 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
     if (state->menu_active) {
         int menu_item_height = 30;
         Rectangle menu_bg = {(float)state->menu_x, (float)state->menu_y, 180, (float)(menu_item_height * 2)};
-        DrawRectangleRec(menu_bg, WHITE);
-        DrawRectangleLinesEx(menu_bg, 2, DARKGRAY);
+        DrawRectangleRec(menu_bg, state->colors.bg_secondary);
+        DrawRectangleLinesEx(menu_bg, 2, state->colors.border);
         
         // Item 1: Nouveau dossier
         Rectangle item1 = {(float)state->menu_x, (float)state->menu_y, 180, (float)menu_item_height};
         Color item1_color = BLANK;
         if (CheckCollisionPointRec(GetMousePosition(), item1)) {
-            item1_color = Fade(SKYBLUE, 0.3f);
+            item1_color = Fade(state->colors.accent, 0.3f);
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 state->menu_active = false;
                 state->create_active = true;
@@ -529,13 +553,13 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             }
         }
         DrawRectangleRec(item1, item1_color);
-        DrawText("Nouveau dossier", (int)state->menu_x + 10, (int)state->menu_y + 7, 14, BLACK);
+        DrawText("Nouveau dossier", (int)state->menu_x + 10, (int)state->menu_y + 7, 14, state->colors.text_primary);
         
         // Item 2: Nouveau fichier
         Rectangle item2 = {(float)state->menu_x, (float)(state->menu_y + menu_item_height), 180, (float)menu_item_height};
         Color item2_color = BLANK;
         if (CheckCollisionPointRec(GetMousePosition(), item2)) {
-            item2_color = Fade(SKYBLUE, 0.3f);
+            item2_color = Fade(state->colors.accent, 0.3f);
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 state->menu_active = false;
                 state->create_active = true;
@@ -546,7 +570,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             }
         }
         DrawRectangleRec(item2, item2_color);
-        DrawText("Nouveau fichier", (int)state->menu_x + 10, (int)(state->menu_y + menu_item_height + 7), 14, BLACK);
+        DrawText("Nouveau fichier", (int)state->menu_x + 10, (int)(state->menu_y + menu_item_height + 7), 14, state->colors.text_primary);
         
         // Close menu on escape or click outside
         if (IsKeyPressed(KEY_ESCAPE)) {
@@ -571,30 +595,30 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
         int modal_x = (state->window_width - modal_width) / 2;
         int modal_y = (state->window_height - modal_height) / 2;
         
-        DrawRectangle(modal_x, modal_y, modal_width, modal_height, WHITE);
+        DrawRectangle(modal_x, modal_y, modal_width, modal_height, state->colors.bg_primary);
         Rectangle modal_rect = {(float)modal_x, (float)modal_y, (float)modal_width, (float)modal_height};
-        DrawRectangleLinesEx(modal_rect, 3, SKYBLUE);
+        DrawRectangleLinesEx(modal_rect, 3, state->colors.accent);
         
         // Title
         const char* title = (state->create_type == CREATE_DIRECTORY) ? "Créer un dossier" : "Créer un fichier";
         int title_width = MeasureText(title, 18);
-        DrawText(title, modal_x + (modal_width - title_width) / 2, modal_y + 15, 18, DARKGRAY);
+        DrawText(title, modal_x + (modal_width - title_width) / 2, modal_y + 15, 18, state->colors.text_primary);
         
         // Input field
         int input_y = modal_y + 50;
         Rectangle input_box = {(float)(modal_x + 15), (float)input_y, (float)(modal_width - 30), 35};
-        DrawRectangleRec(input_box, Fade(WHITE, 0.9f));
-        DrawRectangleLinesEx(input_box, 2, SKYBLUE);
+        DrawRectangleRec(input_box, state->colors.bg_secondary);
+        DrawRectangleLinesEx(input_box, 2, state->colors.accent);
         
         const char* placeholder = (state->create_type == CREATE_DIRECTORY) ? "Nom du dossier..." : "Nom du fichier...";
         const char* text = (state->create_name[0] != '\0') ? state->create_name : placeholder;
-        Color text_color = (state->create_name[0] != '\0') ? BLACK : GRAY;
+        Color text_color = (state->create_name[0] != '\0') ? state->colors.text_primary : state->colors.text_disabled;
         DrawText(text, (int)input_box.x + 10, (int)input_box.y + 9, 16, text_color);
         
         // Blinking cursor
         if (state->create_name[0] != '\0' && ((int)(GetTime() * 2) % 2 == 0)) {
             int tw = MeasureText(state->create_name, 16);
-            DrawText("|", (int)input_box.x + 10 + tw, (int)input_box.y + 9, 16, BLACK);
+            DrawText("|", (int)input_box.x + 10 + tw, (int)input_box.y + 9, 16, state->colors.text_primary);
         }
         
         // Buttons
@@ -606,9 +630,9 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
         
         // OK button
         Rectangle ok_btn = {(float)start_x, (float)btn_y, (float)btn_width, 25};
-        Color ok_color = Fade(SKYBLUE, 0.8f);
+        Color ok_color = Fade(state->colors.accent, 0.8f);
         if (CheckCollisionPointRec(GetMousePosition(), ok_btn)) {
-            ok_color = SKYBLUE;
+            ok_color = state->colors.accent;
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 if (state->create_name[0] != '\0') {
                     state->create_confirmed = true;
@@ -616,13 +640,13 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             }
         }
         DrawRectangleRec(ok_btn, ok_color);
-        DrawText("OK", (int)ok_btn.x + 30, (int)ok_btn.y + 5, 14, WHITE);
+        DrawText("OK", (int)ok_btn.x + 30, (int)ok_btn.y + 5, 14, state->colors.bg_primary);
         
         // Cancel button
         Rectangle cancel_btn = {(float)(start_x + btn_width + btn_spacing), (float)btn_y, (float)btn_width, 25};
-        Color cancel_color = Fade(LIGHTGRAY, 0.8f);
+        Color cancel_color = Fade(state->colors.text_secondary, 0.8f);
         if (CheckCollisionPointRec(GetMousePosition(), cancel_btn)) {
-            cancel_color = GRAY;
+            cancel_color = state->colors.text_secondary;
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 state->create_active = false;
                 state->create_confirmed = false;
@@ -631,7 +655,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             }
         }
         DrawRectangleRec(cancel_btn, cancel_color);
-        DrawText("Cancel", (int)cancel_btn.x + 18, (int)cancel_btn.y + 5, 14, DARKGRAY);
+        DrawText("Cancel", (int)cancel_btn.x + 18, (int)cancel_btn.y + 5, 14, state->colors.bg_primary);
         
         // Handle ESC to close modal
         if (IsKeyPressed(KEY_ESCAPE)) {
@@ -704,8 +728,13 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
                 DrawRectangleRec(item_rect, Fade(bg_color, 0.3f));
             }
             
+            // Opacité adaptée pour fichiers cachés
+            float alpha = get_entry_opacity(entry->name);
+            
             // Icône dessinée
             Color icon_color = (entry->type == FILE_TYPE_DIRECTORY) ? state->colors.accent : state->colors.text_secondary;
+            icon_color = Fade(icon_color, alpha);
+            
             if (entry->type == FILE_TYPE_DIRECTORY) {
                 // Dossier : rectangle avec onglet
                 DrawRectangle(x + 2, y + 8, 18, 14, icon_color);
@@ -726,22 +755,25 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
                 );
             }
             
-            // Colonne 1: Nom
-            DrawText(entry->name, x + 28, y + 3, FONT_SIZE - 2, state->colors.text_primary);
+            // Colonne 1: Nom - avec couleur adaptée pour fichiers cachés
+            Color name_color = get_text_color_for_entry(state, entry->name, i == state->selected_index);
+            name_color = Fade(name_color, alpha);
+            DrawText(entry->name, x + 28, y + 3, FONT_SIZE - 2, name_color);
             
             // Colonne 2: Taille (seulement pour les fichiers)
+            Color size_color = Fade(state->colors.text_secondary, alpha);
             if (entry->type == FILE_TYPE_FILE) {
                 char size_str[64];
                 format_size(entry->size, size_str, sizeof(size_str));
-                DrawText(size_str, PADDING + col_name_width, y + 5, FONT_SIZE - 4, state->colors.text_secondary);
+                DrawText(size_str, PADDING + col_name_width, y + 5, FONT_SIZE - 4, size_color);
             } else {
-                DrawText("[dossier]", PADDING + col_name_width, y + 5, FONT_SIZE - 4, state->colors.text_secondary);
+                DrawText("[dossier]", PADDING + col_name_width, y + 5, FONT_SIZE - 4, size_color);
             }
             
             // Colonne 3: Date de modification
             char date_str[32];
             format_time(entry->mod_time, date_str, sizeof(date_str));
-            DrawText(date_str, PADDING + col_name_width + col_size_width, y + 5, FONT_SIZE - 4, state->colors.text_secondary);
+            DrawText(date_str, PADDING + col_name_width + col_size_width, y + 5, FONT_SIZE - 4, size_color);
         }
         
         y += LINE_HEIGHT;
@@ -755,14 +787,14 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
         int panel_height = state->window_height - content_y - 30;
         
         // Séparateur vertical
-        DrawRectangle(state->window_width / 2, content_y, 2, state->window_height - content_y, GRAY);
+        DrawRectangle(state->window_width / 2, content_y, 2, state->window_height - content_y, state->colors.border);
         
         // Fond du panneau
-        DrawRectangle(panel_x, panel_y, panel_width, panel_height, WHITE);
-        DrawRectangleLines(panel_x, panel_y, panel_width, panel_height, LIGHTGRAY);
+        DrawRectangle(panel_x, panel_y, panel_width, panel_height, state->colors.bg_primary);
+        DrawRectangleLines(panel_x, panel_y, panel_width, panel_height, state->colors.border);
         
         // En-tête du panneau avec bouton de fermeture
-        DrawRectangle(panel_x, panel_y, panel_width, 30, LIGHTGRAY);
+        DrawRectangle(panel_x, panel_y, panel_width, 30, state->colors.bg_secondary);
         
         // Extraire le nom du fichier
         const char* file_name = strrchr(state->selected_file_path, '/');
@@ -775,13 +807,13 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
         } else {
             strncpy(display_name, file_name, sizeof(display_name) - 1);
         }
-        DrawText(display_name, panel_x + 10, panel_y + 8, 16, DARKGRAY);
+        DrawText(display_name, panel_x + 10, panel_y + 8, 16, state->colors.text_primary);
         
         // Bouton fermer (X)
         Rectangle close_btn = {(float)(panel_x + panel_width - 30), (float)(panel_y + 5), 20, 20};
-        Color close_color = GRAY;
+        Color close_color = Fade(state->colors.text_secondary, 0.7f);
         if (CheckCollisionPointRec(GetMousePosition(), close_btn)) {
-            close_color = RED;
+            close_color = ORANGE;
             if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 if (state->selected_file_path) {
                     free(state->selected_file_path);
@@ -794,7 +826,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             }
         }
         DrawRectangleRec(close_btn, close_color);
-        DrawText("X", panel_x + panel_width - 26, panel_y + 7, 16, WHITE);
+        DrawText("X", panel_x + panel_width - 26, panel_y + 7, 16, state->colors.bg_primary);
         
         // Contenu du fichier
         int text_y = panel_y + 35;
@@ -802,7 +834,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
         
         if (state->is_binary_file) {
             // Afficher message pour fichier binaire
-            DrawText("Fichier binaire", panel_x + 10, text_y + 10, 18, DARKGRAY);
+            DrawText("Fichier binaire", panel_x + 10, text_y + 10, 18, state->colors.text_secondary);
             char size_str[64];
             if (state->file_size < 1024) {
                 snprintf(size_str, sizeof(size_str), "Taille: %ld octets", state->file_size);
@@ -811,8 +843,8 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
             } else {
                 snprintf(size_str, sizeof(size_str), "Taille: %.1f MB", state->file_size / (1024.0 * 1024.0));
             }
-            DrawText(size_str, panel_x + 10, text_y + 35, 16, GRAY);
-            DrawText("Impossible d'afficher le contenu", panel_x + 10, text_y + 60, 14, GRAY);
+            DrawText(size_str, panel_x + 10, text_y + 35, 16, state->colors.text_disabled);
+            DrawText("Impossible d'afficher le contenu", panel_x + 10, text_y + 60, 14, state->colors.text_disabled);
         } else if (state->file_content) {
             // Gérer le scroll avec la molette dans la zone du panneau
             Rectangle panel_area = {(float)panel_x, (float)text_y, (float)panel_width, (float)text_area_height};
@@ -856,10 +888,41 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
                     // Numéro de ligne
                     char num_str[8];
                     snprintf(num_str, sizeof(num_str), "%4d", line_num);
-                    DrawText(num_str, panel_x + 5, line_y, 14, GRAY);
+                    DrawText(num_str, panel_x + 5, line_y, 14, state->colors.text_secondary);
                     
-                    // Contenu de la ligne
-                    DrawText(line_buffer, panel_x + 45, line_y, 14, BLACK);
+                    // Contenu de la ligne - avec highlight si recherche par contenu
+                    if (state->search_by_content && state->search_text[0] != '\0') {
+                        // Chercher et mettre en avant le texte trouvé
+                        const char* search_pos = strstr(line_buffer, state->search_text);
+                        if (search_pos) {
+                            // Afficher le début avant la correspondance
+                            int before_len = search_pos - line_buffer;
+                            char before_buf[512];
+                            strncpy(before_buf, line_buffer, before_len);
+                            before_buf[before_len] = '\0';
+                            DrawText(before_buf, panel_x + 45, line_y, 14, state->colors.text_primary);
+                            
+                            // Mettre en évidence la correspondance
+                            int match_width = MeasureText(before_buf, 14);
+                            Rectangle highlight_box = {
+                                (float)(panel_x + 45 + match_width),
+                                (float)(line_y - 1),
+                                (float)MeasureText(state->search_text, 14) + 4,
+                                14 + 2
+                            };
+                            DrawRectangleRec(highlight_box, Fade(state->colors.accent, 0.3f));
+                            DrawText(state->search_text, panel_x + 45 + match_width + 2, line_y, 14, ORANGE);
+                            
+                            // Afficher la fin après la correspondance
+                            const char* after_start = search_pos + strlen(state->search_text);
+                            int after_width = match_width + MeasureText(state->search_text, 14) + 2;
+                            DrawText(after_start, panel_x + 45 + after_width, line_y, 14, state->colors.text_primary);
+                        } else {
+                            DrawText(line_buffer, panel_x + 45, line_y, 14, state->colors.text_primary);
+                        }
+                    } else {
+                        DrawText(line_buffer, panel_x + 45, line_y, 14, state->colors.text_primary);
+                    }
                 }
                 
                 line_y += line_height;
@@ -886,7 +949,7 @@ void ui_render(UIState* state, FileList* files, const char* current_path) {
         "Tapez pour chercher | BACKSPACE pour effacer | ESC pour annuler" :
         "Ctrl+F: Rechercher | Cliquez sur un dossier pour y entrer | Molette pour defiler | ESC pour quitter";
     int text_width = MeasureText(instructions, 12);
-    DrawText(instructions, state->window_width - text_width - PADDING, state->window_height - 25, 12, DARKGRAY);
+    DrawText(instructions, state->window_width - text_width - PADDING, state->window_height - 25, 12, state->colors.text_secondary);
     
     EndDrawing();
 }
